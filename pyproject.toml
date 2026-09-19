@@ -1,0 +1,15 @@
+# Tooling config only. No [project] table on purpose: the package runs from the
+# repository root with `python -m comboy` and is not meant to be installed yet.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["comboy", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]

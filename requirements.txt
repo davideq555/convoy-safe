@@ -1,0 +1,4 @@
+# Runtime dependencies for comboy-safe (Phase 0).
+# Keep this list minimal: the design docs forbid extra dependencies.
+PyYAML>=6.0
+pytest>=7.0

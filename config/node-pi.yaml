@@ -1,0 +1,25 @@
+# comboy-safe — Raspberry Pi node (test-bench follower)
+# See docs/09-banco-de-pruebas.md.
+
+node:
+  id: 2
+  role: follower
+  priority_order: 2
+
+transport:
+  kind: udp
+  udp:
+    bind: "0.0.0.0:45550"
+    peers: ["192.168.1.10:45550"]   # local PC
+
+simulation:
+  enabled: false
+  delay_ms: 340
+  loss: 0.10
+
+log:
+  # path is omitted on purpose: logs go to stderr for bench use.
+  level: info
+
+audio:
+  tts_voice: "es"

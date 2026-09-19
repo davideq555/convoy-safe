@@ -1,0 +1,25 @@
+# comboy-safe — PC node (test-bench leader)
+# See docs/09-banco-de-pruebas.md.
+
+node:
+  id: 1
+  role: leader
+  priority_order: 1
+
+transport:
+  kind: udp
+  udp:
+    bind: "0.0.0.0:45550"
+    peers: ["192.168.1.42:45550"]   # Raspberry Pi
+
+simulation:
+  enabled: false
+  delay_ms: 340
+  loss: 0.10
+
+log:
+  # path is omitted on purpose: logs go to stderr for bench use.
+  level: info
+
+audio:
+  tts_voice: "es"
