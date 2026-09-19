@@ -126,8 +126,7 @@ class Logger:
         wall = datetime.now().isoformat(timespec="milliseconds")
         uptime_ms = int((time.monotonic() - self._start) * 1000)
         prefix = (
-            f"{wall} +{uptime_ms:010d} boot={self._boot_id} "
-            f"node={self._node_id} role={self._role}"
+            f"{wall} +{uptime_ms:010d} boot={self._boot_id} node={self._node_id} role={self._role}"
         )
         head = f"{_LEVEL_LABELS[level]:<{_LEVEL_WIDTH}}{event:<{_EVENT_WIDTH}}"
         line = f"{prefix} {head}"

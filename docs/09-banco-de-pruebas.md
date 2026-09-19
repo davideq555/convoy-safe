@@ -78,6 +78,7 @@ El resto del sistema nunca toca un socket. Habla con una interfaz.
 ```python
 from typing import Protocol, Iterator
 
+
 class Transport(Protocol):
     def send_frame(self, frame: bytes) -> None:
         """Envía una trama. Puede fallar silenciosamente: es best-effort."""
@@ -115,8 +116,8 @@ class LossyTransport(Transport):
 
     def send_frame(self, frame: bytes) -> None:
         if random.random() < self._loss:
-            return                      # pérdida de paquete
-        time.sleep(self._delay)         # tiempo de aire aproximado
+            return  # pérdida de paquete
+        time.sleep(self._delay)  # tiempo de aire aproximado
         self._inner.send_frame(frame)
 ```
 

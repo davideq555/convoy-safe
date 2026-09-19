@@ -166,9 +166,7 @@ def role_from_name(name: str) -> Role:
     try:
         return ROLE_BY_NAME[name.strip().lower()]
     except KeyError as exc:
-        raise ValueError(
-            f"rol desconocido: {name!r} (se esperaba 'leader' o 'follower')"
-        ) from exc
+        raise ValueError(f"rol desconocido: {name!r} (se esperaba 'leader' o 'follower')") from exc
 
 
 __all__ = [

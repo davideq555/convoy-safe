@@ -84,9 +84,7 @@ class UdpTransport:
 
     def _start_reader(self) -> None:
         if self._reader is None:
-            self._reader = threading.Thread(
-                target=self._read_loop, name="udp-recv", daemon=True
-            )
+            self._reader = threading.Thread(target=self._read_loop, name="udp-recv", daemon=True)
             self._reader.start()
 
     def _read_loop(self) -> None:

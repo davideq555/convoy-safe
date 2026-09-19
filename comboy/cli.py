@@ -233,14 +233,9 @@ def _selftest_checks() -> list[tuple[str, bool, str]]:
     checks.append(("la trama corta se rechaza", decode(short) is None, ""))
     unknown_version = bytearray(encoded)
     unknown_version[0] = 2
-    checks.append(
-        ("la versión desconocida se rechaza", decode(bytes(unknown_version)) is None, "")
-    )
+    checks.append(("la versión desconocida se rechaza", decode(bytes(unknown_version)) is None, ""))
 
-    expected_phrase = (
-        "Piedras en la calzada, carril derecho, "
-        "a 2 kilómetros. Precaución."
-    )
+    expected_phrase = "Piedras en la calzada, carril derecho, a 2 kilómetros. Precaución."
     phrase = build_phrase(example)
     checks.append(("frase de ejemplo de docs/06", phrase == expected_phrase, phrase))
 
