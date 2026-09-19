@@ -42,8 +42,8 @@ concreta y recurrente.
 
 | Valor | Código | Texto para TTS |
 |---|---|---|
-| `0x00` | `PRECAUCION` | "Precaución." |
-| `0x01` | `REDUCIR` | "Reduzca la velocidad." |
+| `0x00` | `INFO` | "Solo informativo." |
+| `0x01` | `PRECAUCION` | "Precaución." |
 | `0x02` | `DETENERSE` | "Deténgase." |
 
 ## Códigos de confianza
@@ -80,13 +80,13 @@ Resultado:
 hazard     = 0x02  (PIEDRAS)
 lane       = 0x02  (DERECHO)
 dist_km    = 2
-urgency    = 0x00  (PRECAUCION)
+urgency    = 0x01  (PRECAUCION)
 confidence = 0x01  (ALTA)
 ```
 
 Frase que escuchan los receptores:
 
-> "Atención comboy: piedras en la calzada, carril derecho, a 2 kilómetros. Precaución."
+> "Piedras en la calzada, carril derecho, a 2 kilómetros. Precaución."
 
 ## Formato de logs (modo desarrollo)
 
@@ -139,6 +139,7 @@ Ejemplos:
 | `shutdown` | INFO | Apagado limpio |
 | `radio.init` | INFO | Inicialización de la radio y parámetros activos |
 | `radio.error` | ERROR | Falla de la radio |
+| `frame.invalid` | WARN | Trama descartada por longitud, versión o CRC inválidos |
 | `wake_word` | INFO | Wake word detectada, con puntaje |
 | `capture.start` | DEBUG | Comienzo de captura |
 | `capture.end` | DEBUG | Fin de captura, con duración y motivo |
@@ -158,6 +159,7 @@ Ejemplos:
 | `roster.present` | INFO | Nodo detectado como presente |
 | `roster.absent` | WARN | Nodo marcado como ausente |
 | `tts.play` | INFO | Reproducción de TTS, con el texto |
+| `tts.unavailable` | WARN | Motor de TTS no disponible; el nodo continúa sin audio |
 | `led.state` | DEBUG | Cambio de estado del LED |
 | `power.low` | ERROR | Tensión de alimentación fuera de rango, si se mide |
 

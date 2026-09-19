@@ -216,18 +216,24 @@ latencia de Piper resulta problemática.
 
 ### Plantillas de anuncio
 
-El código recibido se renderiza con una plantilla. Ejemplos:
+El código recibido se renderiza con una plantilla. La frase arranca directamente
+con el peligro: "atención comboy" es la wake word que dice el conductor, no un
+prefijo que pronuncie el receptor. Los textos del catálogo van en minúscula y la
+primera letra de la frase final se capitaliza al ensamblar.
 
 | Urgencia | Plantilla | Ejemplo generado |
 |---|---|---|
-| PRECAUCIÓN | `Atención comboy: {peligro} {carril}, a {dist} kilómetros. Precaución.` | "Atención comboy: piedras en la calzada, carril derecho, a 2 kilómetros. Precaución." |
-| REDUCIR | `Atención comboy: {peligro} {carril}, a {dist} kilómetros. Reduzca la velocidad.` | "Atención comboy: accidente en la calzada, toda la ruta, a 1 kilómetro. Reduzca la velocidad." |
-| DETENERSE | `Atención comboy: deténgase. {peligro} {carril}, a {dist} kilómetros.` | "Atención comboy: deténgase. Derrumbe, toda la ruta, a 500 metros." |
+| INFO | `{peligro} {carril}, a {dist} kilómetros. Solo informativo.` | "Derrumbe sobre la ruta, toda la ruta, aquí mismo. Solo informativo." |
+| PRECAUCIÓN | `{peligro} {carril}, a {dist} kilómetros. Precaución.` | "Piedras en la calzada, carril derecho, a 2 kilómetros. Precaución." |
+| DETENERSE | `{peligro} {carril}, a {dist} kilómetros. Deténgase.` | "Accidente en la calzada, toda la ruta, a 1 kilómetro. Deténgase." |
 | Confianza baja | `Posible {peligro} {carril}, a {dist} kilómetros. Precaución.` | "Posible animal sobre la calzada, a 3 kilómetros. Precaución." |
 
-Cuando el código es `DESCONOCIDO`, la plantilla es genérica y agrega un pedido:
+Cuando el carril es `SIN_ESPECIFICAR`, la plantilla omite el carril. Cuando la
+urgencia es desconocida, se cae a `PRECAUCION` (el nivel medio).
 
-> "Atención comboy: peligro no identificado más adelante. Precaución."
+Cuando el código es `DESCONOCIDO`, la plantilla es genérica:
+
+> "Peligro no identificado. Precaución."
 
 El catálogo completo de códigos y sus textos está en
 [06-codigos-y-logs.md](06-codigos-y-logs.md).
@@ -241,11 +247,15 @@ obligatorio (D4).
 | Estado | Color y patrón | Significado |
 |---|---|---|
 | Sin alertas, roster completo | Verde fijo | Todo normal |
-| Alerta activa, urgencia PRECAUCIÓN | Ámbar, parpadeo lento | Peligro informado, sin urgencia inmediata |
-| Alerta activa, urgencia REDUCIR | Ámbar, parpadeo rápido | Reducir velocidad |
+| Alerta activa, urgencia INFO | Ámbar fijo | Peligro informado, sin urgencia inmediata |
+| Alerta activa, urgencia PRECAUCIÓN | Ámbar, parpadeo lento | Prestar atención |
 | Alerta activa, urgencia DETENERSE | Rojo, parpadeo rápido | Detenerse |
 | Nodo del comboy ausente | Azul, parpadeo lento | Un vehículo dejó de responder |
 | Falla del sistema | Blanco o magenta fijo | Problema de radio, micrófono o audio |
+
+> **Propuesta a validar:** el mapeo de patrones para `INFO` y `PRECAUCIÓN`
+> (ámbar fijo vs. ámbar con parpadeo lento) queda por confirmar en pruebas de
+> campo; la distinción es útil pero puede no ser perceptible a pleno sol.
 
 Si hay varias alertas activas simultáneas, el LED muestra la de **mayor
 urgencia**.

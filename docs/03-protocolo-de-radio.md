@@ -61,15 +61,42 @@ Todos los campos multibyte son little-endian.
 | 10 | `hazard` | u8 | Código de tipo de peligro — ver [06-codigos-y-logs.md](06-codigos-y-logs.md) |
 | 11 | `lane` | u8 | Código de carril o posición en la ruta |
 | 12 | `dist_km` | u8 | Distancia declarada por el conductor, `0`–`15` km, `255` desconocida |
-| 13 | `urgency` | u8 | `0` precaución, `1` reducir velocidad, `2` detenerse |
+| 13 | `urgency` | u8 | `0` info, `1` precaución, `2` detenerse (severidad ascendente) |
 | 14 | `confidence` | u8 | `0` baja, `1` alta |
-| 15–16 | `crc16` | u16 | CRC-16/CCITT sobre los bytes 0–14 |
+| 15–16 | `crc16` | u16 | CRC-16/CCITT sobre los bytes 0–14 — variante exacta en [CRC de la trama](#crc-de-la-trama) |
 
 **Total: 17 bytes.**
 
 La trama es deliberadamente de tamaño fijo. Un payload de largo variable
 complicaría el decodificador sin ningún beneficio, dado que el vocabulario de
 peligros es cerrado y pequeño.
+
+### CRC de la trama
+
+El diseño original decía solo "CRC-16/CCITT", lo cual es ambiguo: ese nombre
+cubre varias variantes (CCITT-FALSE, XMODEM, KERMIT, X-25, ...) que difieren en
+el valor inicial, la reflexión de entrada/salida y el xor de salida.
+
+La implementación usa **CRC-16/CCITT-FALSE**:
+
+| Parámetro | Valor |
+|---|---|
+| Polinomio | `0x1021` |
+| Init | `0xFFFF` |
+| RefIn | no |
+| RefOut | no |
+| XorOut | `0x0000` |
+
+Vector de verificación obligatorio: los bytes ASCII de `"123456789"` deben dar
+`0x29B1`.
+
+> **Esto fue una elección de implementación, no una decisión de diseño.** Surgió
+> al programar el códec, no en la etapa de diseño del protocolo. Como los dos
+> extremos de la comunicación son código propio, cualquier variante funcionaría
+> mientras ambos lados coincidan. Debe revisarse si alguna vez hay que
+> interoperar con un sistema externo (otro firmware, un gateway, una librería de
+> terceros) o si se prefiere otra variante por razones de ecosistema. Es una
+> decisión consciente y reversible, no un descuido.
 
 ### Lo que *no* está en la trama
 

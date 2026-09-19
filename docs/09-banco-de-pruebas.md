@@ -15,6 +15,13 @@ protocolo** con el hardware que ya existe, sin esperar a las placas LoRa.
 
 LoRa todavía no está disponible. La cámara y el LED RGB tampoco.
 
+### Entorno de la Raspberry Pi (confirmado)
+
+La Pi no corre Raspberry Pi OS: corre **Ubuntu 24.04 aarch64**, kernel
+`6.8.0-1064-raspi`. Python es **3.12.3** y el hostname es `eevee`. Por eso el
+objetivo de `ruff` es `py312`: así ninguna sintaxis que no corra en el
+intérprete real de despliegue llega al banco.
+
 ## Topología del banco
 
 ```
@@ -214,7 +221,7 @@ Y lo mismo para Piper:
 
 ```bash
 time piper -m es_AR.onnx -f salida.wav \
-  <<< "Atención comboy: piedras en la calzada, carril derecho, a 2 kilómetros."
+  <<< "Piedras en la calzada, carril derecho, a 2 kilómetros. Precaución."
 ```
 
 Esta medición toma diez minutos y saca de encima la incógnita más grande del
@@ -237,8 +244,9 @@ Es on/off, no RGB, así que no puede mostrar colores. Pero alcanza para validar
 que la máquina de estados enciende y apaga el indicador cuando corresponde.
 
 **Para el TTS, `espeak-ng` sirve para empezar.** Es instantáneo, no requiere
-modelos ni descargas, y suena robótico. Sirve para validar el transporte y el
-flujo sin pelearse primero con Piper. Después se cambia.
+modelos ni descargas, y suena robótico. En Ubuntu se instala con
+`sudo apt install espeak-ng`. Sirve para validar el transporte y el flujo sin
+pelearse primero con Piper. Después se cambia.
 
 ## Checklist de migración a LoRa
 
