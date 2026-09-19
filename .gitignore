@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+
+# Entorno y configuración local de cada nodo
+.env
+config.local.*
+
+# Modelos descargados (pesados; se obtienen aparte)
+models/
+
+# Logs de ejecución
+logs/
+*.log
+
+# Sistema
+.DS_Store
+*.swp
