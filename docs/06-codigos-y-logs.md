@@ -160,6 +160,8 @@ Ejemplos:
 | `roster.absent` | WARN | Nodo marcado como ausente |
 | `tts.play` | INFO | Reproducción de TTS, con el texto |
 | `tts.unavailable` | WARN | Motor de TTS no disponible; el nodo continúa sin audio |
+| `mic.unavailable` | WARN | Micrófono no disponible (`arecord` ausente o falló); el nodo continúa sin captura |
+| `wakeword.unavailable` | WARN | Modelo de wake word ausente o no cargable; la detección queda desactivada |
 | `led.state` | DEBUG | Cambio de estado del LED |
 | `power.low` | ERROR | Tensión de alimentación fuera de rango, si se mide |
 
