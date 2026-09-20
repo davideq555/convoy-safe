@@ -3,6 +3,7 @@
 Subcomandos:
     run       Corre el loop de recepción del nodo.
     send      Construye y transmite una trama de alerta.
+    listen    Escucha el micrófono, detecta la wake word y envía la alerta.
     selftest  Autoprueba offline (CRC, round-trip del codec, rechazo de
               tramas corruptas, frase).
 
@@ -28,10 +29,12 @@ from .codes import (
 from .config import Config, load_config
 from .frame import AlertFrame
 from .logging_setup import Logger
+from .mic import Microphone, wav_chunks
 from .node import Node
 from .phrase import build_phrase
 from .transport import create_transport
 from .tts import Speaker
+from .wakeword import DEFAULT_MODEL_PATH, VoskWakeWord
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,33 +58,54 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="ruta al archivo de config YAML (valores por defecto si se omite)",
     )
-    send_parser.add_argument(
-        "--hazard",
-        required=True,
-        help="nombre del código de peligro, p. ej. PIEDRAS",
+    _add_alert_arguments(send_parser)
+
+    listen_parser = subparsers.add_parser(
+        "listen", help="escucha el micrófono y envía una alerta al detectar la wake word"
     )
-    send_parser.add_argument(
-        "--lane", default="SIN_ESPECIFICAR", help="nombre del código de carril, p. ej. DERECHO"
+    listen_parser.add_argument(
+        "--config",
+        default=None,
+        help="ruta al archivo de config YAML (valores por defecto si se omite)",
     )
-    send_parser.add_argument(
-        "--dist-km", type=int, default=255, help="distancia declarada 0..15, o 255 desconocida"
+    listen_parser.add_argument(
+        "--wav",
+        default=None,
+        help="lee un WAV 16 kHz mono s16 en vez del micrófono (para probar sin micrófono)",
     )
-    send_parser.add_argument(
-        "--urgency", default="PRECAUCION", help="nombre del código de urgencia, p. ej. PRECAUCION"
-    )
-    send_parser.add_argument(
-        "--confidence", default="ALTA", help="nombre del código de confianza, p. ej. ALTA"
-    )
-    send_parser.add_argument(
-        "--origin-id", type=int, default=None, help="sobrescribe el id de nodo configurado"
-    )
-    send_parser.add_argument(
-        "--alert-id", type=lambda value: int(value, 0), default=None, help="id de alerta explícito"
-    )
+    _add_alert_arguments(listen_parser)
 
     subparsers.add_parser("selftest", help="corre las autopruebas offline (sin red)")
 
     return parser
+
+
+def _add_alert_arguments(parser: argparse.ArgumentParser) -> None:
+    """Agrega los argumentos de alerta compartidos por ``send`` y ``listen``."""
+
+    parser.add_argument(
+        "--hazard",
+        required=True,
+        help="nombre del código de peligro, p. ej. PIEDRAS",
+    )
+    parser.add_argument(
+        "--lane", default="SIN_ESPECIFICAR", help="nombre del código de carril, p. ej. DERECHO"
+    )
+    parser.add_argument(
+        "--dist-km", type=int, default=255, help="distancia declarada 0..15, o 255 desconocida"
+    )
+    parser.add_argument(
+        "--urgency", default="PRECAUCION", help="nombre del código de urgencia, p. ej. PRECAUCION"
+    )
+    parser.add_argument(
+        "--confidence", default="ALTA", help="nombre del código de confianza, p. ej. ALTA"
+    )
+    parser.add_argument(
+        "--origin-id", type=int, default=None, help="sobrescribe el id de nodo configurado"
+    )
+    parser.add_argument(
+        "--alert-id", type=lambda value: int(value, 0), default=None, help="id de alerta explícito"
+    )
 
 
 def _make_logger(config: Config) -> Logger:
@@ -121,6 +145,55 @@ def _parse_confidence(value: str) -> Confidence:
         raise ValueError(f"confianza desconocida: {value!r}") from exc
 
 
+def _resolve_alert_codes(args: argparse.Namespace) -> tuple[Hazard, Lane, Urgency, Confidence]:
+    """Traduce los nombres de la CLI a enums y valida ``--dist-km``.
+
+    Lanza ``ValueError`` con el motivo; el llamador decide cómo reportarlo.
+    """
+
+    hazard = _parse_hazard(args.hazard)
+    lane = _parse_lane(args.lane)
+    urgency = _parse_urgency(args.urgency)
+    confidence = _parse_confidence(args.confidence)
+    if not 0 <= args.dist_km <= 255:
+        raise ValueError("--dist-km debe estar en 0..255")
+    return hazard, lane, urgency, confidence
+
+
+def _resolve_origin_id(args: argparse.Namespace, config: Config) -> int:
+    """Id de origen efectivo, validado en 1..255. Lanza ``ValueError`` si no sirve."""
+
+    origin_id = args.origin_id if args.origin_id is not None else config.node.id
+    if not 1 <= origin_id <= 255:
+        raise ValueError("--origin-id debe estar en 1..255")
+    return origin_id
+
+
+def _build_alert_frame(
+    codes: tuple[Hazard, Lane, Urgency, Confidence],
+    args: argparse.Namespace,
+    config: Config,
+    origin_id: int,
+) -> AlertFrame:
+    """Construye la trama de alerta con los argumentos de la CLI."""
+
+    hazard, lane, urgency, confidence = codes
+    alert_id = args.alert_id if args.alert_id is not None else random.getrandbits(32)
+    return AlertFrame(
+        msg_type=MsgType.ALERTA,
+        alert_id=alert_id & 0xFFFFFFFF,
+        origin_id=origin_id,
+        origin_role=int(role_from_name(config.node.role)),
+        hop=0,
+        ttl=3,  # docs/03: el ttl se inicializa en 3
+        hazard=int(hazard),
+        lane=int(lane),
+        dist_km=args.dist_km,
+        urgency=int(urgency),
+        confidence=int(confidence),
+    )
+
+
 def _run(args: argparse.Namespace) -> int:
     config = load_config(args.config)
     logger = _make_logger(config)
@@ -136,16 +209,9 @@ def _run(args: argparse.Namespace) -> int:
 
 def _send(args: argparse.Namespace) -> int:
     try:
-        hazard = _parse_hazard(args.hazard)
-        lane = _parse_lane(args.lane)
-        urgency = _parse_urgency(args.urgency)
-        confidence = _parse_confidence(args.confidence)
+        codes = _resolve_alert_codes(args)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
-        return 2
-
-    if not 0 <= args.dist_km <= 255:
-        print("error: --dist-km debe estar en 0..255", file=sys.stderr)
         return 2
 
     config = load_config(args.config)
@@ -154,31 +220,97 @@ def _send(args: argparse.Namespace) -> int:
     speaker = Speaker(voice=config.audio.tts_voice, logger=logger)
     node = Node(config, transport, logger, speaker)
 
-    origin_id = args.origin_id if args.origin_id is not None else config.node.id
-    if not 1 <= origin_id <= 255:
-        print("error: --origin-id debe estar en 1..255", file=sys.stderr)
+    try:
+        origin_id = _resolve_origin_id(args, config)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         node.close()
         logger.close()
         return 2
 
-    alert_id = args.alert_id if args.alert_id is not None else random.getrandbits(32)
-    frame = AlertFrame(
-        msg_type=MsgType.ALERTA,
-        alert_id=alert_id & 0xFFFFFFFF,
-        origin_id=origin_id,
-        origin_role=int(role_from_name(config.node.role)),
-        hop=0,
-        ttl=3,  # docs/03: el ttl se inicializa en 3
-        hazard=int(hazard),
-        lane=int(lane),
-        dist_km=args.dist_km,
-        urgency=int(urgency),
-        confidence=int(confidence),
-    )
+    frame = _build_alert_frame(codes, args, config, origin_id)
     try:
         node.send_alert(frame)
     finally:
         node.close()
+        logger.close()
+    return 0
+
+
+def _listen(args: argparse.Namespace) -> int:
+    """Corre el primer slice de la Fase 2: wake word -> alerta enviada.
+
+    Captura audio de forma continua, detecta la wake word y, en cada detección,
+    envía la alerta configurada por la misma ruta que ``send``.
+
+    Fuera de alcance a propósito: VAD, transcripción de la frase de peligro,
+    clasificador por reglas y half-duplex. Este slice solo prueba que la wake
+    word dispare el envío.
+
+    Con ``--wav FILE`` se lee un WAV 16 kHz mono s16 en vez del micrófono, para
+    poder validar la cadena sin micrófono real.
+    """
+
+    try:
+        codes = _resolve_alert_codes(args)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    config = load_config(args.config)
+
+    try:
+        origin_id = _resolve_origin_id(args, config)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    # Se valida la fuente antes de cargar el modelo (que tarda segundos): un
+    # WAV mal formado debe fallar rápido y con un mensaje claro.
+    microphone: Microphone | None = None
+    if args.wav:
+        try:
+            chunks = wav_chunks(args.wav)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        source = "wav"
+    else:
+        source = "mic"
+
+    logger = _make_logger(config)
+    transport = create_transport(config, logger)
+    speaker = Speaker(voice=config.audio.tts_voice, logger=logger)
+    node = Node(config, transport, logger, speaker)
+    if source == "mic":
+        microphone = Microphone(logger=logger)
+        chunks = microphone.chunks()
+
+    detector = VoskWakeWord(DEFAULT_MODEL_PATH, phrase=config.audio.wake_word, logger=logger)
+
+    def anunciar_wake_word() -> None:
+        logger.info(
+            "wake_word",
+            phrase=config.audio.wake_word,
+            text=detector.last_text,
+            source=source,
+        )
+        node.send_alert(_build_alert_frame(codes, args, config, origin_id))
+
+    try:
+        for chunk in chunks:
+            if detector.accept(chunk):
+                anunciar_wake_word()
+        # Una fuente finita (WAV) puede terminar sin silencio de cierre.
+        if source == "wav" and detector.flush():
+            anunciar_wake_word()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if microphone is not None:
+            microphone.close()
+        node.close()
+        logger.info("shutdown")
         logger.close()
     return 0
 
@@ -266,6 +398,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run(args)
     if args.command == "send":
         return _send(args)
+    if args.command == "listen":
+        return _listen(args)
     if args.command == "selftest":
         return _selftest(args)
 

@@ -1,5 +1,6 @@
 # Dependencies for comboy-safe (Phase 0): runtime + development tools.
 # Keep this list minimal: the design docs forbid extra dependencies.
 PyYAML>=6.0
+vosk>=0.3.45
 pytest>=7.0
 ruff>=0.16
