@@ -212,6 +212,29 @@ Las propiedades que importan acá:
 Hay que usar un modelo **multilingüe**: los modelos de embeddings más difundidos
 son solo en inglés.
 
+### Modelo elegido
+
+El modelo es **`qwen3-embedding:0.6b`**, servido por **Ollama** en
+`http://localhost:11434`. Se eligió con mediciones sobre el conjunto de frases
+reales, no por intuición:
+
+| Modelo | Acierto | ¿El error cae bajo el umbral? |
+|---|---|---|
+| `qwen3-embedding:0.6b` | 93 % (13/14) | **Sí** — el único error queda bajo el umbral y se vuelve `DESCONOCIDO` |
+| `bge-m3` | 93 % (13/14) | No — su error cae por encima del umbral (código incorrecto con confianza alta) |
+| `nomic-embed-text` | 64 % (9/14) | No — varios errores confiados |
+| `granite-embedding:278m` | 79 % (11/14) | No — se solapa con el ruido |
+
+Los resultados crudos están en `docs/results-test-embedding/`. Lo decisivo no fue
+el acierto —`qwen3-embedding:0.6b` y `bge-m3` empatan— sino que el único error de
+`qwen3-embedding:0.6b` cae **por debajo** del umbral: ante la duda, el sistema
+responde `DESCONOCIDO` con confianza baja en vez de un código incorrecto con
+confianza alta. Eso es exactamente el invariante que no se negocia.
+
+El cliente de embeddings vive en `comboy/embedding.py`. Hay un cliente
+`kind: null` determinista para depurar sin red, y el comando
+`python -m comboy text "..."` permite probar el clasificador sin micrófono.
+
 ### Extracción de campos por reglas
 
 Distancia, carril y urgencia son datos estructurados, no lenguaje libre:
@@ -227,24 +250,32 @@ es despreciable.
 
 ### Frases de ejemplo por código
 
-La cobertura del clasificador vive en esta tabla. Agregar una frase es agregar
-cobertura, sin reentrenar nada.
+La cobertura del clasificador vive en las **frases completas** de ejemplo, no en
+un léxico de palabras sueltas: el motor es semántico y compara oraciones enteras.
+Agregar una frase es agregar cobertura, sin reentrenar nada.
+
+Esta tabla muestra una muestra representativa de cada código. El conjunto
+completo (4 a 6 frases por código) y el conjunto de control `FRASES_RUIDO` —frases
+de conductor que **no** son peligro— están en `comboy/corpus.py`. Las frases se
+normalizan antes de embeber, así que las tildes o los números en dígitos no
+cambian el resultado.
 
 | Código | Frases de ejemplo |
 |---|---|
-| `ACCIDENTE` | accidente, choque, colisión, vuelco |
-| `PIEDRAS` | piedra, piedras, roca, rocas, desprendimiento |
-| `ANIMAL` | animal, vaca, caballo, perro, oveja, "se cruzó un bicho" |
-| `PEATON` | persona, peatón, gente caminando |
-| `VEHICULO_DETENIDO` | auto parado, camión detenido, vehículo parado |
-| `BACHE` | bache, pozo, hoyo |
-| `OBRA` | obra, trabajo, arreglo, máquina |
-| `CONTROL` | control, policía, gendarmería, retén |
-| `NIEBLA` | niebla, neblina, humo, baja visibilidad |
-| `LLUVIA` | lluvia, lloviendo, mojado, resbaladizo |
-| `HIELO` | hielo, escarcha, congelado, nieve |
-| `DERRUMBE` | derrumbe, deslizamiento, alud |
-| `CURVA` | curva, curva peligrosa, contracurva |
+| `ACCIDENTE` | "hubo un accidente en la ruta", "frena que hay un choque adelante" |
+| `PIEDRAS` | "hay piedras en la calzada", "se desprendieron rocas de la montaña" |
+| `ANIMAL` | "se nos cruzó un bicho en el camino", "hay una vaca suelta en la calzada" |
+| `PEATON` | "hay gente caminando al costado", "hay un peatón en la banquina" |
+| `VEHICULO_DETENIDO` | "hay un camión parado en la ruta", "hay un auto detenido en la calzada" |
+| `BACHE` | "la ruta está hecha un colador de pozos", "hay un pozo profundo en la ruta" |
+| `OBRA` | "están arreglando la ruta más adelante", "hay maquinaria trabajando en la calzada" |
+| `CONTROL` | "nos van a parar en un control", "hay gendarmería en la ruta" |
+| `NIEBLA` | "hay mucha niebla en la ruta", "la visibilidad es muy baja por la neblina" |
+| `LLUVIA` | "está lloviendo muy fuerte", "la ruta está mojada y resbaladiza" |
+| `HIELO` | "está todo blanco de escarcha", "hay hielo sobre la calzada" |
+| `DERRUMBE` | "se vino la montaña abajo", "hubo un deslizamiento de tierra" |
+| `CURVA` | "se viene una curva muy cerrada", "hay una curva peligrosa adelante" |
+| `CONTRAMANO` | "hay un loco manejando en contra", "viene un auto en contramano" |
 
 ### Cálculo de confianza
 

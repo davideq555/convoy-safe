@@ -145,8 +145,9 @@ Ejemplos:
 | `capture.end` | DEBUG | Fin de captura, con duración y motivo |
 | `stt.result` | INFO | Transcripción obtenida |
 | `stt.empty` | WARN | No se obtuvo transcripción usable |
-| `classify` | INFO | Código resultante de la clasificación |
-| `classify.unknown` | WARN | No se reconoció ningún peligro del catálogo |
+| `classify` | INFO | Código resultante de la clasificación, con similitud y margen |
+| `classify.unknown` | WARN | No se reconoció ningún peligro del catálogo, o la frase lo negaba |
+| `classify.unavailable` | WARN | Servicio de embeddings no disponible o con fallo; se clasifica como `DESCONOCIDO` con confianza baja |
 | `alert.tx` | INFO | Alerta transmitida |
 | `alert.rx` | INFO | Alerta recibida de otro nodo |
 | `alert.echo` | DEBUG | Reemisión escuchada de otro nodo (acuse implícito) |
