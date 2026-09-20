@@ -118,7 +118,7 @@ Formato propuesto, legible por humanos y fácil de filtrar con `grep` y `awk`:
 Ejemplos:
 
 ```
-2026-09-18T14:32:11.123 +0001234567 boot=7f3a node=3 role=follower INFO  boot          version=0.1.0 config=loaded
+2026-09-18T14:32:11.123 +0001234567 boot=7f3a node=3 role=follower INFO  boot          version=0.1.0 config=loaded local=192.168.25.159:45550
 2026-09-18T14:32:12.004 +0001235448 boot=7f3a node=3 role=follower INFO  radio.init    sf=10 bw=125 freq=915000000 tx_dbm=20
 2026-09-18T14:33:05.771 +0001289215 boot=7f3a node=3 role=follower INFO  wake_word     phrase="atencion comboy" score=0.87
 2026-09-18T14:33:06.402 +0001289846 boot=7f3a node=3 role=follower INFO  capture.end   ms=631 reason=vad_silence
@@ -135,7 +135,7 @@ Ejemplos:
 
 | Evento | Nivel | Descripción |
 |---|---|---|
-| `boot` | INFO | Arranque del proceso, versión y resultado de la carga de configuración |
+| `boot` | INFO | Arranque del proceso, versión, resultado de la carga de configuración y dirección local (`local=`) cuando el transporte es UDP: es el dato que el otro nodo necesita para apuntarle |
 | `shutdown` | INFO | Apagado limpio |
 | `radio.init` | INFO | Inicialización de la radio y parámetros activos |
 | `radio.error` | ERROR | Falla de la radio |

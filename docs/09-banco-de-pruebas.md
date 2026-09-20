@@ -45,6 +45,72 @@ No escribir un "cliente de PC" y un "servidor de Pi" por separado. Si el código
 se bifurca, la validación pierde valor, porque en producción cada vehículo tiene
 que poder cumplir ambos roles.
 
+## Configurar cada nodo sin editar archivos
+
+Lo que cambia de una máquina a otra —id, rol, a qué dirección mandar— se pasa por
+**variables de entorno**, que ganan sobre el YAML. Así un mismo archivo sirve en
+las dos máquinas.
+
+| Variable | Pisa a | Ejemplo |
+|---|---|---|
+| `COMBOY_NODE_ID` | `node.id` | `2` |
+| `COMBOY_NODE_ROLE` | `node.role` | `follower` |
+| `COMBOY_TRANSPORT` | `transport.kind` | `udp` |
+| `COMBOY_UDP_BIND` | `transport.udp.bind` | `0.0.0.0:45550` |
+| `COMBOY_UDP_PEERS` | `transport.udp.peers` | `eevee.local:45550` |
+| `COMBOY_LOG_LEVEL` | `log.level` | `debug` |
+
+`COMBOY_UDP_PEERS` acepta varios pares separados por coma. Una variable presente
+pero vacía se ignora: `COMBOY_UDP_PEERS=` no borra la lista del archivo.
+
+### El archivo `.env`
+
+Para no exportar variables a mano en cada terminal, cada máquina puede tener su
+propio `.env`, que el nodo lee solo:
+
+```bash
+cp .env.example .env
+```
+
+`.env.example` está versionado y documenta todo lo configurable; `.env` no, así
+que cada nodo tiene el suyo. **No hace falta `source`.**
+
+Dos reglas deliberadas: solo se aceptan claves `COMBOY_*` —un `.env` no puede
+inyectar `PATH` ni nada parecido— y el entorno real gana sobre el archivo. La
+precedencia completa queda:
+
+```
+entorno real  >  .env  >  archivo YAML  >  valores por defecto
+```
+
+`COMBOY_ENV_FILE` permite apuntar a otro archivo, por si hacen falta varios
+perfiles en la misma máquina.
+
+### `peers` es la dirección del otro, no la propia
+
+Conviene tenerlo claro porque es fácil confundirse: `bind` es dónde **yo**
+escucho; `peers` es a dónde **yo mando**. Un nodo no puede deducir de sí mismo la
+dirección de su par.
+
+Para no averiguar direcciones a mano, cada nodo anuncia dónde escucha al arrancar:
+
+```
+INFO  boot  version=0.1.0 config=loaded local=192.168.25.155:45550
+```
+
+Ese `local=` es la IP real de la interfaz por la que sale el tráfico, no el
+`0.0.0.0` del archivo. Es el dato que va del otro lado.
+
+### Nombres mDNS en vez de IPs
+
+La Pi tiene **una sola interfaz**, así que `eevee.local` resuelve siempre a su IP
+de LAN y **sobrevive a que el DHCP se la cambie**. Por eso `config/node-pc.yaml`
+lo usa como peer. No hace falta internet ni DNS: mDNS es local a la red.
+
+La PC, en cambio, tiene varias interfaces (Docker, bridges) y su nombre mDNS
+resuelve ambiguo: puede devolver una dirección inalcanzable. Del lado de la Pi va
+una IP, y si el DHCP la cambia se pasa por `COMBOY_UDP_PEERS` sin tocar el YAML.
+
 ## Por qué UDP y no TCP
 
 Aunque a primera vista TCP parece más cómodo, **es la elección equivocada para
