@@ -9,11 +9,14 @@ para la Fase 3.
 
 from __future__ import annotations
 
+from typing import Any
+
 from . import __version__
 from .codes import ROLE_NAMES, MsgType, Role, as_confidence, as_hazard, as_lane, as_urgency
 from .config import Config
 from .frame import AlertFrame, decode
 from .logging_setup import Logger
+from .netinfo import detect_local_ip
 from .phrase import build_phrase
 from .transport import Transport
 from .tts import Speaker
@@ -37,7 +40,11 @@ class Node:
     def run(self) -> None:
         """Corre el loop de recepción bloqueante hasta que se interrumpa o se cierre."""
 
-        self._logger.info("boot", version=__version__, config="loaded")
+        fields: dict[str, Any] = {"version": __version__, "config": "loaded"}
+        local = self._local_endpoint()
+        if local is not None:
+            fields["local"] = local
+        self._logger.info("boot", **fields)
         try:
             for data, origin in self._transport.recv_frames():
                 self._handle_frame(data, origin)
@@ -46,6 +53,22 @@ class Node:
         finally:
             self.close()
             self._logger.info("shutdown")
+
+    def _local_endpoint(self) -> str | None:
+        """La dirección en la que este nodo escucha, para que el peer sepa a dónde apuntar.
+
+        El host configurado suele ser ``0.0.0.0`` (escuchar en todas las
+        interfaces), que no sirve como destino. Por eso se reemplaza por la IP
+        real de la interfaz de salida. Devuelve ``None`` fuera de UDP.
+        """
+
+        if self._config.transport.kind != "udp":
+            return None
+        ip = detect_local_ip()
+        if ip is None:
+            return None
+        port = self._config.transport.udp.bind.rpartition(":")[2]
+        return f"{ip}:{port}" if port else ip
 
     def send_alert(self, frame: AlertFrame) -> None:
         """Codifica y transmite una trama de alerta, registrando ``alert.tx``."""

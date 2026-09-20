@@ -1,5 +1,11 @@
-# comboy-safe — PC node (test-bench leader)
-# See docs/09-banco-de-pruebas.md.
+# comboy-safe — Nodo PC (leader del banco de pruebas)
+# Ver docs/09-banco-de-pruebas.md.
+#
+# Cualquier valor se puede sobrescribir por variable de entorno, que gana sobre
+# el archivo (ver comboy/config.py). Útil para no editar el YAML cuando cambia
+# la red:
+#   COMBOY_NODE_ID, COMBOY_NODE_ROLE, COMBOY_TRANSPORT,
+#   COMBOY_UDP_BIND, COMBOY_UDP_PEERS (separados por coma), COMBOY_LOG_LEVEL
 
 node:
   id: 1
@@ -10,7 +16,9 @@ transport:
   kind: udp
   udp:
     bind: "0.0.0.0:45550"
-    peers: ["192.168.1.42:45550"]   # Raspberry Pi
+    # Nombre mDNS en vez de IP: la Pi tiene una sola interfaz, así que su .local
+    # resuelve sin ambigüedad y sobrevive a que el DHCP le cambie la dirección.
+    peers: ["eevee.local:45550"]
 
 simulation:
   enabled: false
@@ -18,7 +26,7 @@ simulation:
   loss: 0.10
 
 log:
-  # path is omitted on purpose: logs go to stderr for bench use.
+  # Sin path a propósito: en el banco de pruebas el log va a stderr.
   level: info
 
 audio:
