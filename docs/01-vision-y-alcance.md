@@ -76,7 +76,8 @@ infraestructura.
   de hardware, pero la funcionalidad queda diferida.
 - Sin detección visual automática de peligros. La cámara apuntará al conductor,
   no al camino (ver [05-hardware.md](05-hardware.md)).
-- Sin LLM. La clasificación es por reglas.
+- Sin LLM en el camino crítico. La clasificación usa embeddings y reglas; el LLM
+  queda diferido para el fallo elegante (ver [04-audio-e-ia.md](04-audio-e-ia.md)).
 - Sin GPS, sin coordenadas, sin integración con mapas.
 - Sin internet, sin nube, sin telemetría remota.
 - Sin botones físicos.

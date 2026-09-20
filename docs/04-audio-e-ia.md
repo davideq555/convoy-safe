@@ -11,7 +11,7 @@
         │                    PIPELINE DE ENTRADA                   │
         │                                                          │
  mic ──▶│  Wake word ──▶ VAD ──▶ STT ──▶ Clasificador ──▶ código    │
-        │ (continuo)  (fin de  (Vosk)   (reglas)                   │
+        │ (continuo)  (fin de  (Vosk)  (embeddings)                │
         │             frase)                                       │
         └──────────────────────────────────────────────────────────┘
                                               │
@@ -87,27 +87,48 @@
 | Aspecto | Decisión |
 |---|---|
 | Frase | "atención comboy" |
-| Motor recomendado | **Porcupine** (Picovoice) |
-| Alternativa | openWakeWord |
+| Motor | **Vosk con gramática restringida** |
+| Alternativas evaluadas | Porcupine (Picovoice), openWakeWord |
 | Ejecución | Hilo dedicado, continuo, independiente del resto del pipeline |
 
-### Por qué Porcupine
+### Por qué Vosk y no Porcupine
 
-- Soporta wake words personalizadas en español a través de su consola.
-- Es muy liviano en CPU: consume una fracción pequeña de un núcleo, lo que lo
-  hace viable para operación continua durante horas.
-- Tiene bindings para varios lenguajes y una API estable.
+Porcupine es técnicamente superior para escucha continua: consume una fracción
+pequeña de un núcleo y tiene consola para entrenar wake words en español. Pero
+exige crear una cuenta, entrenar la frase y **resolver una licencia comercial**
+antes de poder usar el sistema en producción.
+
+Vosk gana por otra razón: **ya es el motor de STT del proyecto.** Usarlo también
+para la wake word deja **un solo motor de audio** en vez de dos, sin licencias,
+sin cuentas y sin entrenamiento — y el modelo en español ya está descargado.
+
+El costo es de CPU: escuchar continuo con Vosk pesa más que Porcupine. Eso es
+parte de lo que mide la Fase 4, y es el argumento principal para reconsiderarlo
+si la medición no cierra.
+
+### La trampa de "comboy"
+
+La frase que dice el conductor es `atencion comboy`, pero **la gramática lleva
+`convoy`**. No es un error de tipeo:
+
+- `comboy` **no existe** en el vocabulario del modelo. Vosk descarta en silencio
+  las palabras que no conoce —solo deja un aviso por `stderr`—, así que una
+  gramática con `comboy` no daría match nunca.
+- En español, **`b` y `v` se pronuncian igual** (betacismo): "atención comboy" y
+  "atención convoy" son fonéticamente idénticas.
+
+El conductor dice "comboy", el modelo transcribe "convoy" y la detección
+funciona. La equivalencia está explícita en el código, con un test que la
+protege para que nadie la "arregle" creyendo que es un typo.
 
 ### Riesgos propios del wake word
 
-- **openWakeWord está fuertemente orientado al inglés.** Sus modelos preentrenados
-  son mayoritariamente en inglés, y entrenar una wake word en español propia es
-  trabajo adicional con resultados inciertos.
-- **El ruido de cabina degrada la detección.** Esta es la primera cosa a validar
-  en un vehículo real en movimiento, antes de construir cualquier otra cosa.
-- **La licencia importa.** Porcupine es gratuito para uso personal, pero requiere
-  licencia para uso comercial. Si el proyecto se comercializa, esto hay que
-  resolverlo (ver [07-riesgos.md](07-riesgos.md)).
+- **El ruido de cabina degrada la detección.** Es lo primero a validar en un
+  vehículo real en movimiento, antes de construir cualquier otra cosa.
+- **Falsos disparos.** La frase de dos palabras con fonética distintiva reduce el
+  riesgo, pero es un parámetro a medir en campo.
+- **La licencia de Porcupine sigue abierta**, por si la Fase 4 recomienda volver
+  a él. Ver [07-riesgos.md](07-riesgos.md).
 
 La frase elegida es buena: dos palabras, fonética distintiva, poco probable de
 aparecer en una conversación normal.
@@ -152,30 +173,69 @@ si en las pruebas de campo Vosk resulta insuficiente.
 ## Clasificación
 
 El clasificador convierte una transcripción en español en un código de peligro
-estructurado. **Es puramente por reglas en el MVP (D12).**
+estructurado. Usa **dos motores complementarios**, cada uno donde es mejor:
 
-### Estrategia
+| Etapa | Motor | Por qué |
+|---|---|---|
+| **Identificar el peligro** | Embeddings (similitud semántica) | El conductor habla coloquial y variado; enumerar sinónimos a mano no alcanza |
+| **Extraer distancia, carril y urgencia** | Reglas | Son datos estructurados (números, direcciones): las reglas son exactas y auditables |
+| **Confianza** | Combinación de ambos | Ver abajo |
 
-1. **Normalización**: minúsculas, sin tildes, sin puntuación, números escritos
-   como palabras unificados.
-2. **Coincidencia por léxico**: cada tipo de peligro tiene un conjunto de
-   términos y frases asociados.
-3. **Extracción de campos**: distancia ("a dos kilómetros", "un kilómetro y
-   medio"), carril ("carril derecho", "mano izquierda", "toda la ruta"), y
-   urgencia ("cuidado", "frená", "pará").
-4. **Cálculo de confianza**: según la fuerza y la cantidad de coincidencias, más
-   la confianza que reporta el propio STT.
-5. **Sin coincidencia**: se emite el código `DESCONOCIDO` con confianza baja, y
-   se le pide al conductor que repita.
+### Identificación del peligro por embeddings
 
-### Ejemplos de léxico
+Un modelo de embeddings convierte la frase en un vector y lo compara contra
+frases de ejemplo, una por concepto:
 
-| Código | Términos de ejemplo |
+```
+"se nos cruzó un bicho"  ──▶  vector  ──▶  más parecido a
+                                            "hay un animal en la ruta"
+                                            = ANIMAL
+```
+
+Las propiedades que importan acá:
+
+- **El conductor no memoriza nada.** Habla como habla. El modelo entiende
+  paráfrasis, no palabras exactas.
+- **No puede alucinar.** Solo puede elegir entre los códigos que le dimos. Es
+  estructuralmente imposible que invente un peligro fuera de la lista.
+- **Enseñarle es agregar frases de ejemplo**, no entrenar nada. La cobertura
+  crece escribiendo casos, no con machine learning.
+- **Es liviano y rápido.** Un modelo de decenas de millones de parámetros corre
+  en CPU en decenas o cientos de milisegundos. Ver el presupuesto más abajo.
+
+> **El vector NO se transmite.** El embedding corre entero en el nodo que
+> escucha; lo único que sale al aire son los **17 bytes de la trama**. Mandar el
+> vector sería unas 90 veces más grande (384 dimensiones son ~400 bytes en
+> `int8`) y no aportaría nada: el significado ya viaja destilado en el código, y
+> el receptor no tiene el audio para aprovecharlo.
+
+Hay que usar un modelo **multilingüe**: los modelos de embeddings más difundidos
+son solo en inglés.
+
+### Extracción de campos por reglas
+
+Distancia, carril y urgencia son datos estructurados, no lenguaje libre:
+
+- **Distancia**: "a dos kilómetros", "un kilómetro y medio", "a 200 metros",
+  "acá nomás", "aquí mismo".
+- **Carril**: "carril derecho", "mano izquierda", "toda la ruta", "la banquina".
+- **Urgencia**: por defecto `PRECAUCION`; sube a `DETENERSE` solo con señal
+  explícita ("frená", "pará", "detenete").
+
+Acá las reglas son la herramienta correcta: son exactas, auditables y su costo
+es despreciable.
+
+### Frases de ejemplo por código
+
+La cobertura del clasificador vive en esta tabla. Agregar una frase es agregar
+cobertura, sin reentrenar nada.
+
+| Código | Frases de ejemplo |
 |---|---|
 | `ACCIDENTE` | accidente, choque, colisión, vuelco |
-| `PIEDRAS` | piedra, piedras, roca, rocas, derrumbe, desprendimiento |
-| `ANIMAL` | animal, vaca, caballo, perro, oveja, lana |
-| `PEATON` | persona, peatón, gente, caminando |
+| `PIEDRAS` | piedra, piedras, roca, rocas, desprendimiento |
+| `ANIMAL` | animal, vaca, caballo, perro, oveja, "se cruzó un bicho" |
+| `PEATON` | persona, peatón, gente caminando |
 | `VEHICULO_DETENIDO` | auto parado, camión detenido, vehículo parado |
 | `BACHE` | bache, pozo, hoyo |
 | `OBRA` | obra, trabajo, arreglo, máquina |
@@ -186,19 +246,63 @@ estructurado. **Es puramente por reglas en el MVP (D12).**
 | `DERRUMBE` | derrumbe, deslizamiento, alud |
 | `CURVA` | curva, curva peligrosa, contracurva |
 
-### Por qué no un LLM
+### Cálculo de confianza
 
-- **Latencia**: un modelo de 1B en la Pi 4 agrega 1–3 segundos por enunciado.
-- **CPU compartida**: la misma CPU ya corre Porcupine, Vosk y Piper.
-- **Determinismo**: en un camino relevante para la seguridad, un clasificador por
-  reglas es auditable y predecible; un LLM puede alucinar.
-- **Sin internet** no hay forma de descargar modelos mejores de los que entran en
+Combina la similitud del embedding con la fuerza de las extracciones:
+
+| Confianza | Cuándo |
+|---|---|
+| `ALTA` | Un peligro con similitud clara y sin competidores, y se extrajo distancia o carril |
+| `BAJA` | Similitud baja, varios peligros empatados, o nada coincide |
+
+**Sin coincidencia clara** se emite `DESCONOCIDO` con confianza baja, y se le
+pide al conductor que repita.
+
+### El invariante que no se negocia
+
+> Ante la duda, `DESCONOCIDO` con confianza baja — **nunca** un código
+> incorrecto con confianza alta.
+
+Un falso negativo con confianza baja se mitiga: se transmite igual, con la frase
+atenuada ("Posible..."). Un falso positivo **con confianza alta** es el peor
+estado posible, porque erosiona la confianza en el sistema (R13).
+
+### Por qué no un LLM en el camino crítico
+
+Se evaluó usar un LLM chico para interpretar lenguaje libre, y se midió en el
+hardware objetivo antes de descartarlo.
+
+| Modelo en Raspberry Pi 4 (8 GB) | Cuantización | Generación |
+|---|---|---|
+| Gemma 4 E2B | Q4_K_M | **1,7 tok/s** |
+| Gemma 4 E4B | Q4_0 | *timeout* |
+
+Una salida estructurada son unos 30 tokens: **18 segundos**. Incluso una salida
+mínima de 10 tokens son 6 segundos, contra un presupuesto de **2 a 4 segundos**
+de punta a punta. La RAM no es el problema —8 GB alcanzan de sobra—; el cómputo
+sí: el SoC no tiene NPU y su ancho de banda de memoria es mínimo. Aun en una
+Pi 5 (~6,5 tok/s medidos) una salida así ronda los 5 segundos.
+
+A la latencia se suman tres razones más:
+
+- **Puede alucinar un peligro.** Un modelo generativo puede emitir un código
+  válido pero falso. La decodificación restringida limita la *forma* de la
+  salida, no su *significado*. Un falso positivo con confianza alta es R13, el
+  peor riesgo del sistema.
+- **CPU compartida**: la misma CPU ya corre la wake word, Vosk y Piper.
+- **No es auditable**: en un camino relevante para la seguridad, un clasificador
+  determinista se revisa caso por caso; un LLM, no.
+- **Sin internet** no hay forma de traer modelos mejores de los que entran en
   una Pi 4.
 
-Si algún día se quiere lenguaje más flexible, el camino correcto es un modelo
-chico (0.5B–1.5B) con **gramática restringida** de modo que solo pueda emitir
-códigos válidos, corriendo como proceso de baja prioridad y opcional. Ver
+**El LLM queda diferido, no descartado.** Su lugar natural es el **fallo
+elegante**: cuando la confianza del clasificador es baja, reformularle la duda al
+conductor ("¿quisiste decir que hay algo en la ruta?"). Eso corre **fuera del
+camino crítico**, donde su latencia deja de importar. Ver
 [08-hoja-de-ruta.md](08-hoja-de-ruta.md).
+
+Los embeddings cubren el objetivo de lenguaje flexible sin ninguno de estos
+problemas, que es la razón por la que son el motor principal y no un LLM.
 
 ## TTS (síntesis de habla)
 
@@ -266,11 +370,17 @@ Estimaciones para una Raspberry Pi 4 de 8 GB, a validar con mediciones reales.
 
 | Etapa | CPU | Latencia típica |
 |---|---|---|
-| Wake word (continuo) | ~5–15% de un núcleo | — |
+| Wake word (Vosk, continuo) | A medir | — |
 | Captura + VAD | ~2% de un núcleo | 0,6–0,8 s de espera de silencio |
 | STT (Vosk, frase corta) | ~30–60% de un núcleo durante la transcripción | 0,5–1,5 s |
-| Clasificación (reglas) | Despreciable | < 10 ms |
+| Clasificación (embeddings) | A medir | A medir |
+| Extracción por reglas | Despreciable | < 10 ms |
 | TTS (Piper, una oración) | ~40–80% de un núcleo durante la síntesis | 0,3–1,0 s |
+
+Las dos filas marcadas **a medir** son las incógnitas que resuelve la Fase 4. La
+wake word pesa más que antes: al usar Vosk en vez de Porcupine hay un motor más
+corriendo, y eso es exactamente lo que hay que cuantificar antes de dar por
+bueno el presupuesto de CPU.
 
 En el peor caso, desde que el conductor termina de hablar hasta que el último
 vehículo escucha la advertencia: **2 a 4 segundos**. Comparado con el margen de

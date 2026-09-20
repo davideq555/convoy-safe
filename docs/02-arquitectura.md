@@ -69,7 +69,7 @@ del protocolo, no de la red.
 | **Capa de transporte** | Abstrae el medio de envío: UDP sobre WiFi en el banco de pruebas, LoRa en producción. Entrega y recibe frames de 17 bytes sin que el resto del sistema sepa qué hay debajo — ver [Abstracción de transporte](#abstracción-de-transporte) |
 | **FSM de alertas** | Lleva el registro de las alertas activas, aplica la expiración a los 180 segundos, deduplica alertas ya vistas, y distribuye hacia el LED y el logger |
 | **FSM de audio** | Es dueña del micrófono y del parlante. Corre el detector de wake word de forma continua, captura enunciados, maneja STT y clasificación, y aplica el half-duplex en la reproducción |
-| **Clasificador** | Convierte una transcripción en español en un código de peligro estructurado, usando un léxico por reglas, con una estimación de confianza |
+| **Clasificador** | Convierte una transcripción en español en un código de peligro estructurado: **embeddings** para identificar el peligro y **reglas** para distancia, carril y urgencia, con una estimación de confianza |
 | **TTS** | Convierte un código de peligro en una oración hablada en español |
 | **Logger** | Agrega registros estructurados en texto plano a un archivo de log |
 | **Controlador de LED** | Mapea el estado del sistema a un color y un patrón de parpadeo |
@@ -226,11 +226,16 @@ funciona.
 | Detección de wake word | continua | ~µs por callback |
 | Fin de captura (VAD) | — | < 1 ms |
 | STT (Vosk, frase corta) | 500–1500 ms | ~5 ms |
-| Clasificación (reglas) | — | 1–5 ms |
+| Clasificación (embeddings) | A medir | ~5 ms |
+| Extracción de campos (reglas) | — | < 1 ms |
 | Codificar trama y enviar | ~0,2 ms | ~0,1 ms |
 | Decodificar trama | — | < 1 ms |
 | TTS (Piper, una oración) | 300–1000 ms | ~5 ms |
-| **Total** | 800–2500 ms | **~12 ms** |
+| **Total** | 800–2500 ms, sin clasificación | **~17 ms** |
+
+El costo de la clasificación por embeddings está sin medir: es una de las
+incógnitas que resuelve la Fase 4. Ver
+[04-audio-e-ia.md](04-audio-e-ia.md#presupuesto-de-cpu-y-latencia).
 
 Python aporta entre el 0,5% y el 1% de la latencia del pipeline. El cuello de
 botella es el STT, no el lenguaje, y el margen de reacción es de 40 segundos a

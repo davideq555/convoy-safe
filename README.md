@@ -58,7 +58,7 @@ se revisen explícitamente.
 | D9 | **La ubicación es solo una distancia estimada** | Sin puntos de referencia, sin kilometraje, sin coordenadas en el payload |
 | D10 | **Sin botones físicos** en el MVP | La voz es el único camino de entrada — ver riesgo R1 |
 | D11 | **El líder se asigna por orden configurado** | Configuración estática por ahora; el liderazgo dinámico es trabajo futuro |
-| D12 | **Sin LLM en el MVP** | Solo clasificación por reglas; el LLM queda como opción diferida |
+| D12 | **Sin LLM en el camino crítico** | Embeddings + reglas para clasificar; el LLM queda diferido para el fallo elegante |
 | D13 | **Python para todo el MVP** | El cómputo pesado corre en bibliotecas nativas (Porcupine, Vosk, Piper); Python orquesta y aporta ~1% de la latencia total |
 | D14 | **El transporte se abstrae tras una interfaz** | El banco de pruebas usa UDP, no TCP, para no ocultar los modos de falla que el protocolo existe para resolver |
 

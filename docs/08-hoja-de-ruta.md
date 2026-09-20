@@ -50,14 +50,15 @@ y que la Pi la pronuncie. Es el nivel L0.
 
 ---
 
-### Fase 1 — Clasificación por reglas
+### Fase 1 — Clasificación semántica
 
 **Objetivo:** convertir una frase escrita en un código de peligro. Es el nivel L1.
 
 **Entregables:**
 
 - Normalizador de texto en español (minúsculas, sin tildes, números a palabras).
-- Léxico de peligros y extractores de carril, distancia y urgencia.
+- Modelo de embeddings multilingüe, con frases de ejemplo por código.
+- Extractores por reglas de carril, distancia y urgencia.
 - Cálculo de confianza.
 - Conjunto de pruebas con frases reales, incluidas variantes coloquiales.
 
@@ -217,7 +218,7 @@ Sin orden comprometido. Se priorizan según lo que aparezca en la Fase 6.
 | Fase | Foco | Hardware necesario | Riesgos atacados |
 |---|---|---|---|
 | 0 | Esqueleto, roles y transporte (L0) | El actual | R5, R19 |
-| 1 | Clasificación por reglas (L1) | El actual | R12, R13 |
+| 1 | Clasificación semántica (L1) | El actual | R12, R13 |
 | 2 | Pipeline de audio (L2) | El actual | R1, R2, R19 |
 | 3 | Protocolo completo y LED (L3) | El actual | R10, R16, R17, R18 |
 | 4 | Medición en la Pi | El actual | R7, R14 |

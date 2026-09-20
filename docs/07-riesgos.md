@@ -223,7 +223,7 @@ pierdan.
 | RTC de hardware | No es prioridad en desarrollo (D6) | — |
 | Auditoría con cadena de hashes y firmas | No es prioridad en desarrollo (D6) | RTC |
 | Detección de somnolencia | Fuera de alcance del MVP | Cámara IR, presupuesto de CPU |
-| LLM para lenguaje flexible | Fuera de alcance del MVP (D12) | Presupuesto de CPU |
+| LLM para lenguaje flexible | Diferido al fallo elegante (D12); los embeddings cubren el lenguaje coloquial | Presupuesto de CPU |
 | Liderazgo dinámico | Líder fijo por configuración (D11) | — |
 | Configuración remota de nodos | No hay infraestructura | — |
 | Rate adaptativo (ADR) | SF fijo es más simple | Mediciones de campo |
