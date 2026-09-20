@@ -10,6 +10,9 @@ venv/
 build/
 dist/
 
+# Herramientas del entorno de desarrollo
+.atl/
+
 # Entorno y configuración local de cada nodo
 .env
 config.local.*
