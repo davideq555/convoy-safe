@@ -2,11 +2,16 @@
 
 No usa micrófono, ni red, ni modelo: reemplaza el detector, la fuente de audio y
 el transporte para verificar que una detección dispara exactamente una alerta.
+
+También cubre el subcomando ``text`` con ``embedding.kind: null``, que corre sin
+red.
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from comboy import cli
@@ -60,3 +65,59 @@ def test_listen_envia_una_alerta_al_detectar(
     assert "wake_word" in salida
     assert "alert.tx" in salida
     assert "shutdown" in salida
+
+
+def _config_sin_red(tmp_path: Path) -> str:
+    """Escribe un YAML con ``embedding.kind: null`` y devuelve su ruta.
+
+    El ``null`` va sin comillas a propósito: es la forma natural de escribirlo y
+    el cargador la acepta como el cliente sin red.
+    """
+
+    ruta = tmp_path / "sin-red.yaml"
+    ruta.write_text("embedding:\n  kind: null\n", encoding="utf-8")
+    return str(ruta)
+
+
+def test_text_clasifica_sin_red(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    codigo = cli.main(["text", "se vino la montaña abajo", "--config", _config_sin_red(tmp_path)])
+
+    assert codigo == 0
+    salida = capsys.readouterr().out
+    assert "DERRUMBE" in salida
+    assert "ALTA" in salida
+
+
+def test_text_emite_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    codigo = cli.main(
+        [
+            "text",
+            "hubo un accidente en la ruta",
+            "--config",
+            _config_sin_red(tmp_path),
+            "--json",
+        ]
+    )
+
+    assert codigo == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["hazard"] == "ACCIDENTE"
+    assert payload["confidence"] == "ALTA"
+    assert set(payload) == {
+        "hazard",
+        "lane",
+        "dist_km",
+        "urgency",
+        "confidence",
+        "similarity",
+        "margin",
+    }
+
+
+def test_text_json_desconocido(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    codigo = cli.main(["text", "zzz qqq wwww", "--config", _config_sin_red(tmp_path), "--json"])
+
+    assert codigo == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["hazard"] == "DESCONOCIDO"
+    assert payload["confidence"] == "BAJA"

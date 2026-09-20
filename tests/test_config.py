@@ -80,3 +80,41 @@ def test_el_entorno_crea_secciones_ausentes(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setenv("COMBOY_UDP_BIND", "0.0.0.0:50000")
     config = config_from_mapping(None)
     assert config.transport.udp.bind == "0.0.0.0:50000"
+
+
+def test_embedding_usa_los_valores_por_defecto() -> None:
+    config = config_from_mapping({})
+    assert config.embedding.kind == "ollama"
+    assert config.embedding.url == "http://localhost:11434"
+    assert config.embedding.model == "qwen3-embedding:0.6b"
+    assert config.embedding.min_similarity == 0.68
+    assert config.embedding.min_margin == 0.02
+
+
+def test_embedding_kind_null_de_yaml_es_el_cliente_sin_red() -> None:
+    # En YAML, ``null`` sin comillas es el valor nulo: el cargador lo interpreta
+    # como el kind "null".
+    config = config_from_mapping({"embedding": {"kind": None}})
+    assert config.embedding.kind == "null"
+
+
+def test_embedding_admite_overrides_por_entorno(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COMBOY_EMBEDDING_KIND", "null")
+    monkeypatch.setenv("COMBOY_EMBEDDING_URL", "http://otro:1234")
+    monkeypatch.setenv("COMBOY_EMBEDDING_MODEL", "otro-modelo")
+    config = config_from_mapping({})
+    assert config.embedding.kind == "null"
+    assert config.embedding.url == "http://otro:1234"
+    assert config.embedding.model == "otro-modelo"
+
+
+def test_embedding_kind_invalido_falla() -> None:
+    with pytest.raises(ValueError, match=r"embedding\.kind"):
+        config_from_mapping({"embedding": {"kind": "otro"}})
+
+
+def test_embedding_umbrales_fuera_de_rango_fallan() -> None:
+    with pytest.raises(ValueError, match="min_similarity"):
+        config_from_mapping({"embedding": {"min_similarity": 1.5}})
+    with pytest.raises(ValueError, match="min_margin"):
+        config_from_mapping({"embedding": {"min_margin": -0.1}})
