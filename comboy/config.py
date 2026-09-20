@@ -24,6 +24,7 @@ from .codes import Role, role_from_name
 from .envfile import DEFAULT_ENV_FILE, ENV_FILE_VAR, load_env_file
 
 VALID_TRANSPORT_KINDS = ("udp", "null", "lora")
+VALID_EMBEDDING_KINDS = ("ollama", "null")
 
 #: Variables de entorno que sobrescriben la config, y la ruta que pisan dentro
 #: del YAML. Son la forma de diferenciar nodos que comparten un mismo archivo.
@@ -34,6 +35,9 @@ ENV_VARS: dict[str, tuple[str, ...]] = {
     "COMBOY_UDP_BIND": ("transport", "udp", "bind"),
     "COMBOY_UDP_PEERS": ("transport", "udp", "peers"),
     "COMBOY_LOG_LEVEL": ("log", "level"),
+    "COMBOY_EMBEDDING_KIND": ("embedding", "kind"),
+    "COMBOY_EMBEDDING_URL": ("embedding", "url"),
+    "COMBOY_EMBEDDING_MODEL": ("embedding", "model"),
 }
 
 
@@ -93,6 +97,23 @@ class AudioConfig:
 
 
 @dataclass(frozen=True)
+class EmbeddingConfig:
+    """Ajustes del clasificador semántico (Fase 1).
+
+    ``kind`` elige el cliente: ``"ollama"`` para el servicio local en
+    ``url``/``model``, ``"null"`` para un cliente determinista sin red.
+    ``min_similarity`` y ``min_margin`` son los umbrales que exige la confianza
+    ``ALTA`` (ver :mod:`comboy.classify`).
+    """
+
+    kind: str = "ollama"
+    url: str = "http://localhost:11434"
+    model: str = "qwen3-embedding:0.6b"
+    min_similarity: float = 0.68
+    min_margin: float = 0.02
+
+
+@dataclass(frozen=True)
 class Config:
     """Configuración completa del nodo."""
 
@@ -101,6 +122,7 @@ class Config:
     simulation: SimulationConfig = field(default_factory=SimulationConfig)
     log: LogConfig = field(default_factory=LogConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
+    embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
 
 
 def default_config() -> Config:
@@ -165,6 +187,31 @@ def _load_audio(section: dict[str, Any]) -> AudioConfig:
         wake_word=str(section.get("wake_word", "atencion comboy")),
         tts_voice=str(section.get("tts_voice", "es")),
         half_duplex=bool(section.get("half_duplex", True)),
+    )
+
+
+def _load_embedding(section: dict[str, Any]) -> EmbeddingConfig:
+    # Ojo: en YAML la palabra ``null`` sin comillas es el valor nulo, no la
+    # cadena "null". Se acepta ``kind: null`` como el cliente sin red para que el
+    # archivo de depuración obvio no falle.
+    raw_kind = section.get("kind", "ollama")
+    kind = "null" if raw_kind is None else str(raw_kind).strip().lower()
+    if kind not in VALID_EMBEDDING_KINDS:
+        raise ValueError(
+            f"embedding.kind debe ser uno de {VALID_EMBEDDING_KINDS}, se obtuvo {kind!r}"
+        )
+    min_similarity = float(section.get("min_similarity", 0.68))
+    min_margin = float(section.get("min_margin", 0.02))
+    if not 0.0 <= min_similarity <= 1.0:
+        raise ValueError(f"embedding.min_similarity debe estar en 0..1, se obtuvo {min_similarity}")
+    if not 0.0 <= min_margin <= 1.0:
+        raise ValueError(f"embedding.min_margin debe estar en 0..1, se obtuvo {min_margin}")
+    return EmbeddingConfig(
+        kind=kind,
+        url=str(section.get("url", "http://localhost:11434")),
+        model=str(section.get("model", "qwen3-embedding:0.6b")),
+        min_similarity=min_similarity,
+        min_margin=min_margin,
     )
 
 
@@ -242,6 +289,7 @@ def config_from_mapping(data: dict[str, Any] | None) -> Config:
         simulation=_load_simulation(_section(data, "simulation")),
         log=_load_log(_section(data, "log")),
         audio=_load_audio(_section(data, "audio")),
+        embedding=_load_embedding(_section(data, "embedding")),
     )
 
 
@@ -273,9 +321,11 @@ def load_config(path: str | Path | None) -> Config:
 __all__ = [
     "ENV_FILE_VAR",
     "ENV_VARS",
+    "VALID_EMBEDDING_KINDS",
     "VALID_TRANSPORT_KINDS",
     "AudioConfig",
     "Config",
+    "EmbeddingConfig",
     "LogConfig",
     "NodeConfig",
     "SimulationConfig",

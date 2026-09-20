@@ -4,21 +4,23 @@ Subcomandos:
     run       Corre el loop de recepción del nodo.
     send      Construye y transmite una trama de alerta.
     listen    Escucha el micrófono, detecta la wake word y envía la alerta.
+    text      Clasifica una frase escrita y muestra el código resultante (L1).
     selftest  Autoprueba offline (CRC, round-trip del codec, rechazo de
               tramas corruptas, frase).
-
-El subcomando ``text`` (nivel L1) deliberadamente no está implementado todavía.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import random
 import sys
 from collections.abc import Sequence
 
 from . import __version__
+from .classify import classify
 from .codes import (
+    DIST_UNKNOWN,
     Confidence,
     Hazard,
     Lane,
@@ -27,6 +29,7 @@ from .codes import (
     role_from_name,
 )
 from .config import Config, load_config
+from .embedding import create_embedding_client
 from .frame import AlertFrame
 from .logging_setup import Logger
 from .mic import Microphone, wav_chunks
@@ -74,6 +77,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="lee un WAV 16 kHz mono s16 en vez del micrófono (para probar sin micrófono)",
     )
     _add_alert_arguments(listen_parser)
+
+    text_parser = subparsers.add_parser(
+        "text", help="clasifica una frase escrita y muestra el código resultante"
+    )
+    text_parser.add_argument(
+        "phrase", help='frase del conductor, p. ej. "hay piedras en la calzada"'
+    )
+    text_parser.add_argument(
+        "--config",
+        default=None,
+        help="ruta al archivo de config YAML (valores por defecto si se omite)",
+    )
+    text_parser.add_argument(
+        "--json", action="store_true", help="imprime la clasificación como objeto JSON"
+    )
 
     subparsers.add_parser("selftest", help="corre las autopruebas offline (sin red)")
 
@@ -315,6 +333,49 @@ def _listen(args: argparse.Namespace) -> int:
     return 0
 
 
+def _text(args: argparse.Namespace) -> int:
+    """Clasifica una frase escrita (nivel L1) y muestra el resultado.
+
+    Es la puerta de entrada para depurar el clasificador sin micrófono. Con
+    ``embedding.kind: null`` corre sin red; con Ollama usa el modelo configurado.
+    """
+
+    config = load_config(args.config)
+    logger = _make_logger(config)
+    client = create_embedding_client(config.embedding, logger)
+    try:
+        result = classify(args.phrase, client, config.embedding, logger)
+    finally:
+        logger.close()
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "hazard": result.hazard.name,
+                    "lane": result.lane.name,
+                    "dist_km": result.dist_km,
+                    "urgency": result.urgency.name,
+                    "confidence": result.confidence.name,
+                    "similarity": round(result.similarity, 4),
+                    "margin": round(result.margin, 4),
+                },
+                ensure_ascii=False,
+            )
+        )
+        return 0
+
+    distancia = "desconocida" if result.dist_km == DIST_UNKNOWN else f"{result.dist_km} km"
+    print(f"peligro   : {result.hazard.name}")
+    print(f"carril    : {result.lane.name}")
+    print(f"distancia : {distancia}")
+    print(f"urgencia  : {result.urgency.name}")
+    print(f"confianza : {result.confidence.name}")
+    print(f"similitud : {result.similarity:.4f}")
+    print(f"margen    : {result.margin:.4f}")
+    return 0
+
+
 def _selftest_checks() -> list[tuple[str, bool, str]]:
     from .frame import CRC16_CCITT_FALSE_INIT, FRAME_SIZE, crc16_ccitt_false, decode
 
@@ -400,6 +461,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _send(args)
     if args.command == "listen":
         return _listen(args)
+    if args.command == "text":
+        return _text(args)
     if args.command == "selftest":
         return _selftest(args)
 
