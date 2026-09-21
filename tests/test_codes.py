@@ -43,6 +43,8 @@ def test_hazard_values_match_doc() -> None:
     assert Hazard.DERRUMBE == 0x0C
     assert Hazard.CURVA == 0x0D
     assert Hazard.CONTRAMANO == 0x0E
+    assert Hazard.CRECIDA == 0x0F
+    assert Hazard.POLVO == 0x10
 
 
 def test_lane_values_match_doc() -> None:

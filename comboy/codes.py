@@ -41,7 +41,7 @@ ROLE_BY_NAME: dict[str, Role] = {
 
 
 class Hazard(IntEnum):
-    """Catálogo de peligros. Quedan 240 valores libres para peligros futuros."""
+    """Catálogo de peligros. Quedan 238 valores libres para peligros futuros."""
 
     DESCONOCIDO = 0x00
     ACCIDENTE = 0x01
@@ -58,6 +58,8 @@ class Hazard(IntEnum):
     DERRUMBE = 0x0C
     CURVA = 0x0D
     CONTRAMANO = 0x0E
+    CRECIDA = 0x0F
+    POLVO = 0x10
 
 
 class Lane(IntEnum):
@@ -103,6 +105,8 @@ HAZARD_TTS: dict[Hazard, str] = {
     Hazard.DERRUMBE: "derrumbe sobre la ruta",
     Hazard.CURVA: "curva peligrosa",
     Hazard.CONTRAMANO: "vehículo en contramano",
+    Hazard.CRECIDA: "crecida del río",
+    Hazard.POLVO: "baja visibilidad por polvo",
 }
 
 #: Texto de TTS para cada carril. Un carril sin especificar se omite de la frase.

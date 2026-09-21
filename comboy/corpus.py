@@ -4,7 +4,7 @@ El clasificador es semántico: compara la frase del conductor contra **frases
 completas**, no contra un léxico de palabras sueltas. Enseñarle cobertura es
 agregar frases acá, sin reentrenar nada.
 
-:data:`FRASES_POR_PELIGRO` cubre los 14 peligros reales del catálogo (todos
+:data:`FRASES_POR_PELIGRO` cubre los 16 peligros reales del catálogo (todos
 menos ``DESCONOCIDO``), con variantes coloquiales incluidas. :data:`FRASES_RUIDO`
 son frases de conductor que **no** son peligro: sirven para comprobar que el
 clasificador no inventa amenazas donde no las hay.
@@ -108,6 +108,20 @@ FRASES_POR_PELIGRO: dict[Hazard, list[str]] = {
         "viene un auto en contramano",
         "hay un vehículo en contra de la mano",
         "alguien viene en sentido contrario",
+    ],
+    Hazard.CRECIDA: [
+        "el río creció y tapó la ruta",
+        "hay una crecida en el cruce del río",
+        "el agua del río está cruzando la ruta",
+        "hay un badén inundado",
+        "viene mucha agua por el río",
+    ],
+    Hazard.POLVO: [
+        "hay mucho polvo en suspensión",
+        "no se ve nada por el polvo",
+        "hay una nube de tierra en la ruta",
+        "el polvo no deja ver el camino",
+        "levantó tierra y no se ve nada",
     ],
 }
 
