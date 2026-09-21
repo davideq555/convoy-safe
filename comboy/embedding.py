@@ -24,7 +24,10 @@ from .config import EmbeddingConfig
 from .logging_setup import Logger
 
 #: Segundos de espera para una llamada a Ollama.
-DEFAULT_TIMEOUT_S = 30.0
+DEFAULT_TIMEOUT_S = 60.0
+
+#: Frases por petición al construir el índice de referencia.
+DEFAULT_BATCH_SIZE = 16
 
 #: Dimensión de los vectores de :class:`NullEmbedding`.
 NULL_DIMENSION = 128
@@ -76,6 +79,12 @@ class OllamaEmbedding:
 
     El cuerpo que espera el endpoint es ``{"model": ..., "input": [...]}`` y la
     respuesta trae los vectores bajo la clave ``embeddings``.
+
+    ``embed`` parte los textos en lotes de ``batch_size`` y hace una petición
+    por lote. Así el tamaño de cada petición queda acotado por ``batch_size`` y
+    no por el corpus: construir el índice de referencia ya no puede exceder el
+    timeout a medida que el corpus crece. Embeber en lote no da ventaja de
+    velocidad, así que partir en lotes no cuesta nada.
     """
 
     def __init__(
@@ -84,12 +93,16 @@ class OllamaEmbedding:
         model: str,
         *,
         timeout: float = DEFAULT_TIMEOUT_S,
+        batch_size: int = DEFAULT_BATCH_SIZE,
         logger: Logger | None = None,
         opener: Callable[..., Any] | None = None,
     ) -> None:
+        if int(batch_size) < 1:
+            raise ValueError(f"batch_size debe ser al menos 1, se obtuvo {batch_size}")
         self._url = url.rstrip("/")
         self._model = model
         self._timeout = float(timeout)
+        self._batch_size = int(batch_size)
         self._logger = logger
         # Costura para los tests: permite inyectar un ``urlopen`` falso sin red.
         self._opener = opener or urllib.request.urlopen
@@ -106,16 +119,35 @@ class OllamaEmbedding:
         return True
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        """Embebe ``texts`` contra Ollama.
+        """Embebe ``texts`` contra Ollama, en lotes de ``batch_size``.
+
+        Devuelve un vector por texto, en el mismo orden. Cuando hay más de un
+        lote —la construcción del índice de referencia— emite ``embedding.index``
+        antes de empezar, para que el arranque no parezca colgado.
 
         Lanza :class:`EmbeddingUnavailable` ante cualquier fallo de red, de
-        protocolo o de formato. Nunca deja escapar una excepción cruda de
-        ``urllib``.
+        protocolo o de formato, en cualquier lote. Nunca deja escapar una
+        excepción cruda de ``urllib``.
         """
 
         items = list(texts)
         if not items:
             return []
+
+        chunks = [
+            items[index : index + self._batch_size]
+            for index in range(0, len(items), self._batch_size)
+        ]
+        if self._logger is not None and len(chunks) > 1:
+            self._logger.info("embedding.index", phrases=len(items), batches=len(chunks))
+
+        vectors: list[list[float]] = []
+        for chunk in chunks:
+            vectors.extend(self._embed_chunk(chunk))
+        return vectors
+
+    def _embed_chunk(self, items: list[str]) -> list[list[float]]:
+        """Embebe un único lote y devuelve sus vectores."""
 
         request = urllib.request.Request(
             f"{self._url}/api/embed",
@@ -132,15 +164,13 @@ class OllamaEmbedding:
                 raise EmbeddingUnavailable(
                     f"respuesta inesperada de {self._url}: se esperaban {len(items)} embeddings"
                 )
-            vectors = [[float(component) for component in vector] for vector in embeddings]
+            return [[float(component) for component in vector] for vector in embeddings]
         except EmbeddingUnavailable:
             raise
         except (OSError, ValueError, KeyError, TypeError) as exc:
             # ``urllib.error.URLError`` (y ``HTTPError``) son subclases de
             # ``OSError``; ``json.JSONDecodeError`` lo es de ``ValueError``.
             raise EmbeddingUnavailable(f"no se pudo consultar {self._url}: {exc}") from exc
-
-        return vectors
 
 
 class NullEmbedding:
@@ -189,11 +219,18 @@ def create_embedding_client(
     if kind == "null":
         return NullEmbedding(logger=logger)
     if kind == "ollama":
-        return OllamaEmbedding(config.url, config.model, logger=logger)
+        return OllamaEmbedding(
+            config.url,
+            config.model,
+            timeout=config.timeout_s,
+            batch_size=config.batch_size,
+            logger=logger,
+        )
     raise ValueError(f"tipo de embedding no soportado: {config.kind!r}")
 
 
 __all__ = [
+    "DEFAULT_BATCH_SIZE",
     "DEFAULT_TIMEOUT_S",
     "NULL_DIMENSION",
     "EmbeddingClient",

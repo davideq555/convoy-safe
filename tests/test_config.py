@@ -89,6 +89,8 @@ def test_embedding_usa_los_valores_por_defecto() -> None:
     assert config.embedding.model == "qwen3-embedding:0.6b"
     assert config.embedding.min_similarity == 0.68
     assert config.embedding.min_margin == 0.02
+    assert config.embedding.timeout_s == 60.0
+    assert config.embedding.batch_size == 16
 
 
 def test_embedding_kind_null_de_yaml_es_el_cliente_sin_red() -> None:
@@ -118,3 +120,22 @@ def test_embedding_umbrales_fuera_de_rango_fallan() -> None:
         config_from_mapping({"embedding": {"min_similarity": 1.5}})
     with pytest.raises(ValueError, match="min_margin"):
         config_from_mapping({"embedding": {"min_margin": -0.1}})
+
+
+def test_embedding_timeout_desde_el_entorno(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COMBOY_EMBEDDING_TIMEOUT", "12.5")
+    config = config_from_mapping({})
+    assert config.embedding.timeout_s == 12.5
+
+
+def test_embedding_timeout_no_numerico_falla(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COMBOY_EMBEDDING_TIMEOUT", "cero")
+    with pytest.raises(ValueError, match="COMBOY_EMBEDDING_TIMEOUT"):
+        config_from_mapping({})
+
+
+def test_embedding_timeout_y_batch_invalidos_fallan() -> None:
+    with pytest.raises(ValueError, match="timeout_s"):
+        config_from_mapping({"embedding": {"timeout_s": 0}})
+    with pytest.raises(ValueError, match="batch_size"):
+        config_from_mapping({"embedding": {"batch_size": 0}})

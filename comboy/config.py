@@ -38,6 +38,7 @@ ENV_VARS: dict[str, tuple[str, ...]] = {
     "COMBOY_EMBEDDING_KIND": ("embedding", "kind"),
     "COMBOY_EMBEDDING_URL": ("embedding", "url"),
     "COMBOY_EMBEDDING_MODEL": ("embedding", "model"),
+    "COMBOY_EMBEDDING_TIMEOUT": ("embedding", "timeout_s"),
 }
 
 
@@ -103,7 +104,10 @@ class EmbeddingConfig:
     ``kind`` elige el cliente: ``"ollama"`` para el servicio local en
     ``url``/``model``, ``"null"`` para un cliente determinista sin red.
     ``min_similarity`` y ``min_margin`` son los umbrales que exige la confianza
-    ``ALTA`` (ver :mod:`comboy.classify`).
+    ``ALTA`` (ver :mod:`comboy.classify`). ``timeout_s`` es la espera máxima por
+    petición HTTP y ``batch_size`` acota cuántas frases viajan en cada una: el
+    índice de referencia se construye en lotes, así que su tiempo no crece con
+    el corpus.
     """
 
     kind: str = "ollama"
@@ -111,6 +115,8 @@ class EmbeddingConfig:
     model: str = "qwen3-embedding:0.6b"
     min_similarity: float = 0.68
     min_margin: float = 0.02
+    timeout_s: float = 60.0
+    batch_size: int = 16
 
 
 @dataclass(frozen=True)
@@ -202,16 +208,24 @@ def _load_embedding(section: dict[str, Any]) -> EmbeddingConfig:
         )
     min_similarity = float(section.get("min_similarity", 0.68))
     min_margin = float(section.get("min_margin", 0.02))
+    timeout_s = float(section.get("timeout_s", 60.0))
+    batch_size = int(section.get("batch_size", 16))
     if not 0.0 <= min_similarity <= 1.0:
         raise ValueError(f"embedding.min_similarity debe estar en 0..1, se obtuvo {min_similarity}")
     if not 0.0 <= min_margin <= 1.0:
         raise ValueError(f"embedding.min_margin debe estar en 0..1, se obtuvo {min_margin}")
+    if timeout_s <= 0:
+        raise ValueError(f"embedding.timeout_s debe ser mayor que 0, se obtuvo {timeout_s}")
+    if batch_size < 1:
+        raise ValueError(f"embedding.batch_size debe ser al menos 1, se obtuvo {batch_size}")
     return EmbeddingConfig(
         kind=kind,
         url=str(section.get("url", "http://localhost:11434")),
         model=str(section.get("model", "qwen3-embedding:0.6b")),
         min_similarity=min_similarity,
         min_margin=min_margin,
+        timeout_s=timeout_s,
+        batch_size=batch_size,
     )
 
 
@@ -223,6 +237,11 @@ def _env_value(name: str, raw: str) -> Any:
             return int(raw)
         except ValueError as exc:
             raise ValueError(f"{name} debe ser un entero, se obtuvo {raw!r}") from exc
+    if name == "COMBOY_EMBEDDING_TIMEOUT":
+        try:
+            return float(raw)
+        except ValueError as exc:
+            raise ValueError(f"{name} debe ser un número, se obtuvo {raw!r}") from exc
     if name == "COMBOY_UDP_PEERS":
         return [peer.strip() for peer in raw.split(",") if peer.strip()]
     return raw

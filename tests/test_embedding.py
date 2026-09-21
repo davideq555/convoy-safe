@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 from typing import Any
 
@@ -14,6 +15,7 @@ from comboy.embedding import (
     cosine,
     create_embedding_client,
 )
+from comboy.logging_setup import Logger
 
 
 class _RespuestaFalsa:
@@ -38,6 +40,24 @@ def _opener(body: bytes, capturado: dict[str, Any]) -> Any:
         capturado["body"] = request.data
         capturado["timeout"] = timeout
         return _RespuestaFalsa(body)
+
+    return abrir
+
+
+def _opener_por_lotes(peticiones: list[list[str]], *, fallar_en: int | None = None) -> Any:
+    """Opener falso que registra cada lote y devuelve un vector por texto.
+
+    El vector devuelto es ``[float(texto[1:])]``: así el orden del resultado
+    delata si la concatenación de lotes mezcló posiciones.
+    """
+
+    def abrir(request: Any, timeout: float | None = None) -> _RespuestaFalsa:
+        payload = json.loads(request.data.decode("utf-8"))
+        peticiones.append(payload["input"])
+        if fallar_en is not None and len(peticiones) == fallar_en:
+            raise OSError("corte en el lote")
+        embeddings = [[float(text[1:])] for text in payload["input"]]
+        return _RespuestaFalsa(json.dumps({"embeddings": embeddings}).encode("utf-8"))
 
     return abrir
 
@@ -161,3 +181,108 @@ def test_factory_construye_null_y_ollama() -> None:
 def test_factory_rechaza_un_tipo_desconocido() -> None:
     with pytest.raises(ValueError):
         create_embedding_client(EmbeddingConfig(kind="otro"))
+
+
+def test_ollama_parte_en_lotes_y_conserva_el_orden() -> None:
+    peticiones: list[list[str]] = []
+    cliente = OllamaEmbedding(
+        "http://localhost:11434", "m", batch_size=16, opener=_opener_por_lotes(peticiones)
+    )
+
+    vectores = cliente.embed([f"t{index}" for index in range(70)])
+
+    assert len(peticiones) == 5
+    assert [len(peticion) for peticion in peticiones] == [16, 16, 16, 16, 6]
+    assert vectores == [[float(index)] for index in range(70)]
+
+
+def test_ollama_una_sola_peticion_si_el_lote_cubre_todo() -> None:
+    peticiones: list[list[str]] = []
+    cliente = OllamaEmbedding(
+        "http://localhost:11434", "m", batch_size=16, opener=_opener_por_lotes(peticiones)
+    )
+
+    vectores = cliente.embed(["t0", "t1", "t2"])
+
+    assert len(peticiones) == 1
+    assert peticiones[0] == ["t0", "t1", "t2"]
+    assert vectores == [[0.0], [1.0], [2.0]]
+
+
+def test_ollama_lanza_unavailable_si_falla_un_lote_posterior() -> None:
+    peticiones: list[list[str]] = []
+    cliente = OllamaEmbedding(
+        "http://localhost:11434",
+        "m",
+        batch_size=2,
+        opener=_opener_por_lotes(peticiones, fallar_en=2),
+    )
+
+    with pytest.raises(EmbeddingUnavailable):
+        cliente.embed(["t0", "t1", "t2", "t3"])
+
+    # El primer lote se pidió; el segundo fue el que falló.
+    assert len(peticiones) == 2
+
+
+def test_ollama_batch_size_invalido_falla() -> None:
+    with pytest.raises(ValueError, match="batch_size"):
+        OllamaEmbedding("http://localhost:11434", "m", batch_size=0)
+
+
+def test_ollama_avisa_cuando_construye_el_indice_en_lotes() -> None:
+    peticiones: list[list[str]] = []
+    buffer = io.StringIO()
+    logger = Logger(node_id=1, role="follower", level="info", stream=buffer)
+    cliente = OllamaEmbedding(
+        "http://localhost:11434",
+        "m",
+        batch_size=16,
+        logger=logger,
+        opener=_opener_por_lotes(peticiones),
+    )
+
+    cliente.embed([f"t{index}" for index in range(70)])
+
+    salida = buffer.getvalue()
+    assert "embedding.index" in salida
+    assert "phrases=70" in salida
+    assert "batches=5" in salida
+
+
+def test_ollama_no_avisa_el_indice_en_una_sola_peticion() -> None:
+    peticiones: list[list[str]] = []
+    buffer = io.StringIO()
+    logger = Logger(node_id=1, role="follower", level="info", stream=buffer)
+    cliente = OllamaEmbedding(
+        "http://localhost:11434",
+        "m",
+        batch_size=16,
+        logger=logger,
+        opener=_opener_por_lotes(peticiones),
+    )
+
+    cliente.embed(["t0"])
+
+    assert "embedding.index" not in buffer.getvalue()
+
+
+def test_factory_propaga_timeout_y_batch_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    peticiones: list[list[str]] = []
+    tiempos: list[float | None] = []
+
+    def abrir(request: Any, timeout: float | None = None) -> _RespuestaFalsa:
+        payload = json.loads(request.data.decode("utf-8"))
+        peticiones.append(payload["input"])
+        tiempos.append(timeout)
+        embeddings = [[float(text[1:])] for text in payload["input"]]
+        return _RespuestaFalsa(json.dumps({"embeddings": embeddings}).encode("utf-8"))
+
+    monkeypatch.setattr("comboy.embedding.urllib.request.urlopen", abrir)
+    cliente = create_embedding_client(EmbeddingConfig(timeout_s=12.5, batch_size=2))
+
+    vectores = cliente.embed(["t0", "t1", "t2"])
+
+    assert [len(peticion) for peticion in peticiones] == [2, 1]
+    assert tiempos == [12.5, 12.5]
+    assert vectores == [[0.0], [1.0], [2.0]]
