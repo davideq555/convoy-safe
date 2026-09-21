@@ -8,7 +8,7 @@ import pytest
 from comboy.classify import Classification, classify
 from comboy.codes import Confidence, Hazard, Lane, Urgency
 from comboy.config import EmbeddingConfig
-from comboy.corpus import FRASES_POR_PELIGRO
+from comboy.corpus import cargar_corpus
 from comboy.embedding import EmbeddingUnavailable, NullEmbedding
 from comboy.extract import extract_distance, extract_lane, extract_urgency
 from comboy.logging_setup import Logger
@@ -61,7 +61,7 @@ def _cliente(
 ) -> _ClienteFalso:
     por_peligro = por_peligro or {}
     mapping: dict[str, list[float]] = {}
-    for hazard, phrases in FRASES_POR_PELIGRO.items():
+    for hazard, phrases in cargar_corpus().items():
         vector = por_peligro.get(hazard, _vector_peligro(hazard))
         for phrase in phrases:
             mapping[normalize(phrase)] = vector
@@ -109,7 +109,7 @@ def test_margen_chico_baja_la_confianza_aunque_la_similitud_sea_alta() -> None:
     cliente = _cliente(
         query,
         [1.0, 0.0],
-        por_peligro={hazard: todos_juntos for hazard in FRASES_POR_PELIGRO},
+        por_peligro={hazard: todos_juntos for hazard in cargar_corpus()},
     )
 
     result = classify(query, cliente, CONFIG, _logger(io.StringIO()))

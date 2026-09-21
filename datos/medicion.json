@@ -1,0 +1,104 @@
+{
+  "_nota": "Frases reservadas para medir el clasificador. NO deben estar en datos/corpus.json: una frase del corpus se compara contra sí misma con similitud 1.0 y no mide nada. Cómo crece: cada frase que falle en la ruta se agrega acá. Se puede fusionar un archivo extra con COMBOY_MEDICION_PATH.",
+  "version": 1,
+  "peligros": {
+    "ACCIDENTE": [
+      "se piñó un auto en la ruta",
+      "hay un choque con heridos",
+      "un auto volcó en la banquina"
+    ],
+    "PIEDRAS": [
+      "hay piedras sueltas en la ruta",
+      "se cayó un pedregullo en la calzada",
+      "hay una roca en el carril"
+    ],
+    "ANIMAL": [
+      "se cruzó un zorro en el camino",
+      "hay animales sueltos en la ruta",
+      "hay un perro en la calzada"
+    ],
+    "PEATON": [
+      "hay un tipo caminando por la ruta",
+      "gente caminando en la banquina"
+    ],
+    "VEHICULO_DETENIDO": [
+      "hay un auto parado en la banquina",
+      "un camión se quedó sin nafta en la ruta"
+    ],
+    "BACHE": [
+      "hay pozos en la ruta",
+      "cuidado con el bache"
+    ],
+    "OBRA": [
+      "hay trabajando gente en la ruta",
+      "hay vallas por obra"
+    ],
+    "CONTROL": [
+      "está la policía en la ruta",
+      "hay un control de gendarmería"
+    ],
+    "NIEBLA": [
+      "hay neblina densa",
+      "no se ve por la niebla"
+    ],
+    "LLUVIA": [
+      "está lloviendo a mares",
+      "el asfalto está mojado"
+    ],
+    "HIELO": [
+      "hay escarcha en el asfalto",
+      "el camino está helado"
+    ],
+    "DERRUMBE": [
+      "se derrumbó el cerro",
+      "hay tierra sobre la ruta"
+    ],
+    "CURVA": [
+      "viene una curva brava",
+      "se viene una curva"
+    ],
+    "CONTRAMANO": [
+      "viene alguien de frente",
+      "hay un auto en sentido contrario"
+    ],
+    "CRECIDA": [
+      "el río está crecido",
+      "no se puede cruzar el río",
+      "el agua tapó el camino"
+    ],
+    "POLVO": [
+      "no se ve por el polvo",
+      "hay tierra en el aire"
+    ]
+  },
+  "ruido": [
+    "che falta mucho",
+    "paramos a cargar nafta",
+    "el tanque está por la mitad",
+    "me gusta el asado",
+    "llegamos en dos horas",
+    "ponete el cinturón",
+    "bajate a comprar algo",
+    "pasame el mate",
+    "qué lindo día",
+    "apagá la radio",
+    "bajá un poco la ventanilla",
+    "tenemos que comer algo",
+    "llamame cuando llegues",
+    "subí la música más fuerte",
+    "vamos a parar en el próximo pueblo",
+    "el nene se durmió",
+    "subí el aire acondicionado",
+    "cuánto falta para el cruce",
+    "el motor anda bien",
+    "vamos bien de tiempo",
+    "tengo sed",
+    "esa nube es linda",
+    "che cuánto falta",
+    "tengo que cargar combustible",
+    "vamos a almorzar en el próximo parador",
+    "me pasás el agua",
+    "el bebé está durmiendo",
+    "poné música tranquila"
+  ]
+}

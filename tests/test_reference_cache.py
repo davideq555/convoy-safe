@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 from comboy import classify as classify_module
+from comboy import datos
 from comboy.classify import (
     _corpus_fingerprint,
     _resolve_reference_index,
@@ -124,9 +125,9 @@ def test_corpus_distinto_reconstruye(tmp_path: Path, monkeypatch: pytest.MonkeyP
     huella_original = _corpus_fingerprint(config)
 
     cliente.reset()
-    corpus_alterado = dict(classify_module.FRASES_POR_PELIGRO)
+    corpus_alterado = dict(classify_module.cargar_corpus())
     corpus_alterado[Hazard.ACCIDENTE] = ["chocaron de frente en la ruta"]
-    monkeypatch.setattr(classify_module, "FRASES_POR_PELIGRO", corpus_alterado)
+    monkeypatch.setattr(classify_module, "cargar_corpus", lambda *args, **kwargs: corpus_alterado)
 
     _resolve_reference_index(cliente, config, _logger())
 
@@ -154,11 +155,37 @@ def test_el_fingerprint_cambia_con_el_modelo() -> None:
 def test_el_fingerprint_cambia_con_el_corpus(monkeypatch: pytest.MonkeyPatch) -> None:
     config = _config("")
     original = _corpus_fingerprint(config)
-    corpus_alterado = dict(classify_module.FRASES_POR_PELIGRO)
+    corpus_alterado = dict(classify_module.cargar_corpus())
     corpus_alterado[Hazard.PIEDRAS] = ["hay escombros en la calzada"]
-    monkeypatch.setattr(classify_module, "FRASES_POR_PELIGRO", corpus_alterado)
+    monkeypatch.setattr(classify_module, "cargar_corpus", lambda *args, **kwargs: corpus_alterado)
 
     assert _corpus_fingerprint(config) != original
+
+
+def test_editar_el_json_cambia_la_huella(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Criterio de aceptación: el JSON manda, no una constante de Python.
+
+    La huella cubre el contenido cargado, así que editar ``datos/corpus.json`` y
+    recargar invalida el índice en disco.
+    """
+
+    base = tmp_path / "corpus.json"
+    base.write_text(
+        json.dumps({"peligros": {"PIEDRAS": ["hay piedras en la ruta"]}}), encoding="utf-8"
+    )
+    monkeypatch.setattr(datos, "DEFAULT_CORPUS_PATH", base)
+    datos.limpiar_cache()
+    config = _config("")
+
+    antes = _corpus_fingerprint(config)
+
+    base.write_text(
+        json.dumps({"peligros": {"PIEDRAS": ["hay muchas piedras en la ruta"]}}),
+        encoding="utf-8",
+    )
+    datos.limpiar_cache()
+
+    assert _corpus_fingerprint(config) != antes
 
 
 def test_el_fingerprint_cambia_con_el_proveedor() -> None:

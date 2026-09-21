@@ -33,7 +33,7 @@ from typing import Any
 
 from .codes import Confidence, Hazard, Lane, Urgency
 from .config import EmbeddingConfig
-from .corpus import FRASES_POR_PELIGRO
+from .corpus import cargar_corpus
 from .embedding import EmbeddingClient, EmbeddingUnavailable, cosine
 from .extract import extract_distance, extract_lane, extract_urgency
 from .logging_setup import Logger
@@ -87,15 +87,17 @@ class _ReferenceIndex:
             self._by_hazard.setdefault(reference.hazard, []).append(reference)
 
     @classmethod
-    def build(cls, client: EmbeddingClient) -> _ReferenceIndex:
+    def build(cls, client: EmbeddingClient, logger: Logger | None = None) -> _ReferenceIndex:
         """Embebe todas las frases del corpus y arma el índice.
 
         Las frases se normalizan antes de embeber: la consulta también se
-        normaliza, así que ambos lados quedan en el mismo espacio.
+        normaliza, así que ambos lados quedan en el mismo espacio. El corpus se
+        resuelve por el cargador en runtime (``datos/corpus.json`` más el extra
+        opcional), no desde una constante del módulo.
         """
 
         pairs: list[tuple[Hazard, str]] = []
-        for hazard, phrases in FRASES_POR_PELIGRO.items():
+        for hazard, phrases in cargar_corpus(logger).items():
             for phrase in phrases:
                 pairs.append((hazard, normalize(phrase)))
         vectors = client.embed([phrase for _, phrase in pairs])
@@ -151,7 +153,7 @@ class _ReferenceIndex:
         return best_reference, best_similarity, best_similarity - second_similarity
 
 
-def _corpus_fingerprint(config: EmbeddingConfig) -> str:
+def _corpus_fingerprint(config: EmbeddingConfig, logger: Logger | None = None) -> str:
     """Huella de la configuración de embeddings y del contenido a embeber.
 
     Cubre la versión de formato, el proveedor (``kind``), la ``url``, el modelo y
@@ -159,14 +161,16 @@ def _corpus_fingerprint(config: EmbeddingConfig) -> str:
     ellos cambia la huella y obliga a reconstruir el índice; es exactamente lo que
     se quiere. En particular, un caché escrito por un proveedor nunca se reutiliza
     con otro, ni siquiera cuando el nombre del modelo coincide: los vectores de
-    proveedores distintos pueden tener dimensiones y espacios diferentes.
+    proveedores distintos pueden tener dimensiones y espacios diferentes. El
+    corpus se resuelve por el cargador, así que editar ``datos/corpus.json``
+    también cambia la huella.
     """
 
     digest = hashlib.sha256()
     digest.update(
         f"v{CACHE_VERSION}\x00{config.kind}\x00{config.url}\x00{config.model}\x00".encode()
     )
-    for hazard, phrases in FRASES_POR_PELIGRO.items():
+    for hazard, phrases in cargar_corpus(logger).items():
         for phrase in phrases:
             digest.update(f"{hazard.name}\x00{normalize(phrase)}\x00".encode())
     return digest.hexdigest()
@@ -272,16 +276,16 @@ def _resolve_reference_index(
 
     raw_path = config.cache_path.strip()
     if not raw_path:
-        return _ReferenceIndex.build(client)
+        return _ReferenceIndex.build(client, logger)
 
     path = Path(raw_path)
-    fingerprint = _corpus_fingerprint(config)
+    fingerprint = _corpus_fingerprint(config, logger)
     cached, reason = _load_cached_index(path, fingerprint)
     if cached is not None:
         logger.info("embedding.cache", result="hit", path=raw_path)
         return cached
     logger.info("embedding.cache", result="miss", path=raw_path, reason=reason)
-    index = _ReferenceIndex.build(client)
+    index = _ReferenceIndex.build(client, logger)
     _save_cached_index(path, index, fingerprint, config.model, logger)
     return index
 
