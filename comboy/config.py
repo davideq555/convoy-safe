@@ -108,6 +108,15 @@ class AudioConfig:
     half_duplex: bool = True
 
 
+#: Umbral de similitud por defecto, **calibrado con el arnés de medición**
+#: (``tools/medir_clasificador.py``, ver docs/09-banco-de-pruebas.md).
+#:
+#: Con 0.68 el clasificador daba 3 falsos positivos; con 0.75 dan 0 y la
+#: calibración pasa a ser positiva, a cambio de 2 aciertos. Ante la duda conviene
+#: subir: una abstención es barata, un falso positivo le miente al conductor.
+DEFAULT_MIN_SIMILARITY = 0.75
+
+
 @dataclass(frozen=True)
 class EmbeddingConfig:
     """Ajustes del clasificador semántico (Fase 1).
@@ -128,7 +137,7 @@ class EmbeddingConfig:
     kind: str = "ollama"
     url: str = "http://localhost:11434"
     model: str = "qwen3-embedding:0.6b"
-    min_similarity: float = 0.68
+    min_similarity: float = DEFAULT_MIN_SIMILARITY
     min_margin: float = 0.02
     timeout_s: float = 60.0
     batch_size: int = 16
@@ -222,7 +231,7 @@ def _load_embedding(section: dict[str, Any]) -> EmbeddingConfig:
         raise ValueError(
             f"embedding.kind debe ser uno de {VALID_EMBEDDING_KINDS}, se obtuvo {kind!r}"
         )
-    min_similarity = float(section.get("min_similarity", 0.68))
+    min_similarity = float(section.get("min_similarity", DEFAULT_MIN_SIMILARITY))
     min_margin = float(section.get("min_margin", 0.02))
     timeout_s = float(section.get("timeout_s", 60.0))
     batch_size = int(section.get("batch_size", 16))
@@ -365,6 +374,7 @@ def load_config(path: str | Path | None) -> Config:
 
 __all__ = [
     "DEFAULT_EMBEDDING_CACHE_PATH",
+    "DEFAULT_MIN_SIMILARITY",
     "ENV_FILE_VAR",
     "ENV_VARS",
     "ENV_VARS_ALLOW_EMPTY",

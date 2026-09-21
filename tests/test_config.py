@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from comboy.config import (
+    DEFAULT_MIN_SIMILARITY,
     apply_env_overrides,
     config_from_mapping,
     load_config,
@@ -87,7 +88,7 @@ def test_embedding_usa_los_valores_por_defecto() -> None:
     assert config.embedding.kind == "ollama"
     assert config.embedding.url == "http://localhost:11434"
     assert config.embedding.model == "qwen3-embedding:0.6b"
-    assert config.embedding.min_similarity == 0.68
+    assert config.embedding.min_similarity == DEFAULT_MIN_SIMILARITY
     assert config.embedding.min_margin == 0.02
     assert config.embedding.timeout_s == 60.0
     assert config.embedding.batch_size == 16
