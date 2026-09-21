@@ -248,6 +248,21 @@ Distancia, carril y urgencia son datos estructurados, no lenguaje libre:
 Acá las reglas son la herramienta correcta: son exactas, auditables y su costo
 es despreciable.
 
+#### La urgencia no se infiere del peligro
+
+El sistema **nunca** deriva la urgencia del tipo de peligro. Una crecida de río no
+es `DETENERSE` por ser una crecida: lo es solo si el conductor dijo "frená" o
+"detenete".
+
+La razón es que **la decisión es del conductor, no del sistema**. El comboy tiene
+un líder humano; el sistema transporta y anuncia la advertencia, pero no la
+gradúa. Un mapa de peligro a urgencia codificaría el criterio de un ingeniero
+sobre una situación que solo quien va adelante puede juzgar: el mismo derrumbe
+puede ser un obstáculo menor o la ruta cortada, y eso no se sabe desde la frase.
+
+Por eso el conductor tiene que decir explícitamente que hay que detenerse. Si el
+líder dice que hay que parar, se para.
+
 ### Frases de ejemplo por código
 
 La cobertura del clasificador vive en las **frases completas** de ejemplo, no en
@@ -276,15 +291,26 @@ cambian el resultado.
 | `DERRUMBE` | "se vino la montaña abajo", "hubo un deslizamiento de tierra" |
 | `CURVA` | "se viene una curva muy cerrada", "hay una curva peligrosa adelante" |
 | `CONTRAMANO` | "hay un loco manejando en contra", "viene un auto en contramano" |
+| `CRECIDA` | "el río creció y tapó la ruta", "hay un badén inundado" |
+| `POLVO` | "hay mucho polvo en suspensión", "levantó tierra y no se ve nada" |
 
 ### Cálculo de confianza
 
-Combina la similitud del embedding con la fuerza de las extracciones:
+La confianza `ALTA` exige **dos** condiciones a la vez:
 
 | Confianza | Cuándo |
 |---|---|
-| `ALTA` | Un peligro con similitud clara y sin competidores, y se extrajo distancia o carril |
-| `BAJA` | Similitud baja, varios peligros empatados, o nada coincide |
+| `ALTA` | La similitud supera `min_similarity` **y** el margen contra el segundo peligro supera `min_margin` |
+| `BAJA` | La similitud no alcanza el umbral, o el margen es chico, o el cliente de embeddings falló |
+
+El **margen** es la diferencia contra el **segundo peligro distinto**, no contra la
+segunda frase de ejemplo: con varias frases por código, comparar frases del mismo
+peligro daría un margen cercano a cero y `ALTA` sería inalcanzable.
+
+El margen es la señal que atrapa los aciertos por casualidad. En las mediciones,
+un acierto correcto llegó a tener un margen de `0.004`: el código era el correcto,
+pero por una moneda al aire. Ese caso debe salir `BAJA`, y por eso el margen es
+una condición independiente de la similitud.
 
 **Sin coincidencia clara** se emite `DESCONOCIDO` con confianza baja, y se le
 pide al conductor que repita.

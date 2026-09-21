@@ -17,15 +17,38 @@ la trama tenga tamaño fijo.
 | `0x06` | `BACHE` | Bache o pozo profundo | "bache en la calzada" |
 | `0x07` | `OBRA` | Obra vial o maquinaria | "obra en la ruta" |
 | `0x08` | `CONTROL` | Control policial o retén | "control en la ruta" |
-| `0x09` | `NIEBLA` | Niebla, humo o baja visibilidad | "baja visibilidad por niebla" |
+| `0x09` | `NIEBLA` | Niebla, neblina o humo | "baja visibilidad por niebla" |
 | `0x0A` | `LLUVIA` | Lluvia o calzada resbaladiza | "calzada resbaladiza por lluvia" |
 | `0x0B` | `HIELO` | Hielo, escarcha o nieve | "hielo sobre la calzada" |
 | `0x0C` | `DERRUMBE` | Derrumbe o deslizamiento | "derrumbe sobre la ruta" |
 | `0x0D` | `CURVA` | Curva peligrosa | "curva peligrosa" |
 | `0x0E` | `CONTRAMANO` | Vehículo en contramano | "vehículo en contramano" |
+| `0x0F` | `CRECIDA` | Crecida de río o cruce inundado | "crecida del río" |
+| `0x10` | `POLVO` | Polvo en suspensión | "baja visibilidad por polvo" |
 
-Quedan 240 valores libres. El catálogo se amplía solo si aparece una necesidad
+Quedan 238 valores libres. El catálogo se amplía solo si aparece una necesidad
 concreta y recurrente.
+
+### Por qué `CRECIDA` no es `LLUVIA`
+
+`LLUVIA` describe un problema de **tracción** —la calzada resbala— y la respuesta
+es moderar la velocidad. Una crecida es un problema de **pasabilidad**: el agua
+puede arrastrar el vehículo, y la respuesta es no cruzar. Son riesgos distintos y
+por eso son códigos distintos.
+
+### Por qué `POLVO` no es `NIEBLA`
+
+Ambos reducen la visibilidad, pero la causa y el texto hablado difieren. `NIEBLA`
+agrupa los fenómenos **atmosféricos** (niebla, neblina, humo); `POLVO` es
+particulado levantado de la ruta —por un vehículo adelante o por una banquina
+suelta—. Decir "niebla" cuando el conductor ve polvo sería engañoso.
+
+### Compatibilidad hacia atrás
+
+Un nodo que corra un catálogo anterior (hasta `0x0E`) y reciba `0x0F` o `0x10`
+no falla: :func:`comboy.codes.as_hazard` lo degrada a `DESCONOCIDO` y la frase
+sale como "peligro no identificado". Se pierde el detalle, nunca la alerta. Por
+eso ampliar el catálogo es seguro en una red con versiones mezcladas.
 
 ## Códigos de carril
 
