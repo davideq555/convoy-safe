@@ -59,9 +59,26 @@ las dos máquinas.
 | `COMBOY_UDP_BIND` | `transport.udp.bind` | `0.0.0.0:45550` |
 | `COMBOY_UDP_PEERS` | `transport.udp.peers` | `eevee.local:45550` |
 | `COMBOY_LOG_LEVEL` | `log.level` | `debug` |
+| `COMBOY_EMBEDDING_KIND` | `embedding.kind` | `ollama` |
+| `COMBOY_EMBEDDING_URL` | `embedding.url` | `http://localhost:11434` |
+| `COMBOY_EMBEDDING_MODEL` | `embedding.model` | `qwen3-embedding:0.6b` |
+| `COMBOY_EMBEDDING_TIMEOUT` | `embedding.timeout_s` | `60` |
+| `COMBOY_EMBEDDING_CACHE` | `embedding.cache_path` | `.comboy-embeddings.json` |
+| `COMBOY_ENV_FILE` | — (apunta a otro archivo de variables) | `config/node-pi.env` |
 
 `COMBOY_UDP_PEERS` acepta varios pares separados por coma. Una variable presente
-pero vacía se ignora: `COMBOY_UDP_PEERS=` no borra la lista del archivo.
+pero vacía se ignora: `COMBOY_UDP_PEERS=` no borra la lista del archivo. La
+excepción es `COMBOY_EMBEDDING_CACHE=`, donde el vacío **deshabilita** el caché
+en disco del índice.
+
+Las rutas de datos no son overrides de la configuración: apuntan al archivo
+**extra** que se fusiona sobre el corpus versionado, sin tocar `datos/`.
+Opcionales: si no se definen, se usa solo la base.
+
+| Variable | Qué define | Ejemplo |
+|---|---|---|
+| `COMBOY_CORPUS_PATH` | Corpus extra a fusionar con `datos/corpus.json` | `datos/extra-corpus.json` |
+| `COMBOY_MEDICION_PATH` | Frases de medición extra a fusionar con `datos/medicion.json` | `datos/extra-medicion.json` |
 
 ### El archivo `.env`
 
@@ -293,6 +310,77 @@ time piper -m es_AR.onnx -f salida.wav \
 
 Esta medición toma diez minutos y saca de encima la incógnita más grande del
 proyecto. Vale la pena hacerla temprano.
+
+## Medir la calidad del clasificador
+
+La validación funcional (nivel L1) responde si **una** frase produce el código
+correcto: `python -m comboy text "..."` pasa o falla. La **medición** responde
+cuánto acierta el clasificador sobre **muchas** frases reservadas y devuelve un
+porcentaje. Son preguntas distintas: la primera dice si el cableado funciona; la
+segunda, si el juicio semántico alcanza para la ruta.
+
+Las frases reservadas viven en `datos/medicion.json` y **no** se usan para
+enseñar. Por eso miden de verdad.
+
+```bash
+python tools/medir_clasificador.py
+```
+
+El instrumento clasifica las 36 frases de peligro y las 28 de ruido, imprime el
+detalle línea por línea y un resumen. Sale con código `0` si no hay errores
+confiados ni falsos positivos, `1` si los hay, y `2` si no pudo medir (datos
+ilegibles o servicio de embeddings caído). Un fallo del instrumento **nunca** se
+cuenta como error del clasificador.
+
+Flags útiles:
+
+| Flag | Qué hace |
+|---|---|
+| `--url URL` | apunta a otro servicio de embeddings, p. ej. `http://eevee.local:11434` |
+| `--model MODELO` | usa otro modelo |
+| `--min-similarity FLOAT` | calibra el umbral de similitud sin tocar archivos |
+| `--min-margin FLOAT` | calibra el margen de confianza sin tocar archivos |
+| `--json` | imprime solo el resumen como JSON y suprime el detalle |
+| `--sin-cache` | deshabilita el caché en disco y mide desde cero |
+
+### Qué reporta
+
+| Métrica | Definición | Umbral |
+|---|---|---|
+| **Aciertos** | `hazard == esperado` | ≥ 75% del MVP |
+| **Abstenciones** | Dijo `DESCONOCIDO`. **No es un fallo**: es el respaldo seguro | — |
+| **Fallos** | Código equivocado | — |
+| **Errores confiados** | Fallo con confianza `ALTA` | **0** |
+| **Falsos positivos** | Una frase de ruido anunciada como peligro con `ALTA` | **0** |
+| **Calibración** | `min(similitud de los aciertos) - max(similitud del ruido)` | Dice si hay umbral limpio |
+
+### Cómo leer los aciertos
+
+| Acierto | Lectura |
+|---|---|
+| ≥ 90% | Listo para la ruta |
+| 75–90% | Aceptable para el MVP; seguir agregando frases |
+| < 75% | El corpus o el modelo no alcanzan |
+
+**Los errores confiados son la métrica que manda.** La única cifra aceptable es
+cero: un error confiado es un código equivocado con confianza `ALTA`, y el
+sistema se lo diría al conductor con seguridad. Por eso la salida solo falla
+cuando hay errores confiados o falsos positivos.
+
+La calibración cierra el círculo: si es positiva, existe un `min_similarity` que
+deja pasar todos los aciertos y rechaza todo el ruido; si es negativa, los dos
+conjuntos se solapan y ningún umbral los separa.
+
+### Cómo crece la medición
+
+Cada frase que falle en la ruta se agrega a `datos/medicion.json`. La medición es
+un banco vivo: más frases, mejor estimación. También se puede fusionar un archivo
+extra con `COMBOY_MEDICION_PATH`, sin tocar el versionado.
+
+Regla que no se rompe: **una frase no puede estar en el corpus y en la medición a
+la vez.** Una frase del corpus se compara contra sí misma con similitud `1.0` y
+no mide nada. Se enseña con una frase nueva en `datos/corpus.json` y se reserva
+una **variante distinta** en `datos/medicion.json`.
 
 ## Tips físicos
 

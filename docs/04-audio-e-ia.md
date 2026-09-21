@@ -269,11 +269,15 @@ La cobertura del clasificador vive en las **frases completas** de ejemplo, no en
 un léxico de palabras sueltas: el motor es semántico y compara oraciones enteras.
 Agregar una frase es agregar cobertura, sin reentrenar nada.
 
-Esta tabla muestra una muestra representativa de cada código. El conjunto
-completo (4 a 6 frases por código) y el conjunto de control `FRASES_RUIDO` —frases
-de conductor que **no** son peligro— están en `comboy/corpus.py`. Las frases se
-normalizan antes de embeber, así que las tildes o los números en dígitos no
-cambian el resultado.
+Los datos no son código: el corpus completo (4 a 6 frases por código) está en
+`datos/corpus.json` y las frases reservadas para medir están en
+`datos/medicion.json`, incluido el conjunto de control de frases que **no** son
+peligro. Para no tocar el archivo versionado, `COMBOY_CORPUS_PATH` y
+`COMBOY_MEDICION_PATH` apuntan a un archivo extra cuyas frases se fusionan sobre
+la base. Las frases se normalizan antes de embeber, así que las tildes o los
+números en dígitos no cambian el resultado.
+
+Esta tabla muestra una muestra representativa de cada código:
 
 | Código | Frases de ejemplo |
 |---|---|

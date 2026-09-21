@@ -58,7 +58,7 @@ y que la Pi la pronuncie. Es el nivel L0.
 
 - Normalizador de texto en español (minúsculas, sin tildes, números a palabras).
 - Modelo de embeddings `qwen3-embedding:0.6b` servido por Ollama, con frases de
-  ejemplo por código en `comboy/corpus.py` (ver la decisión y las mediciones en
+  ejemplo por código en `datos/corpus.json` (ver la decisión y las mediciones en
   [04-audio-e-ia.md](04-audio-e-ia.md#modelo-elegido)).
 - Extractores por reglas de carril, distancia y urgencia.
 - Cálculo de confianza.
