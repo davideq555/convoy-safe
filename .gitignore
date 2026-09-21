@@ -24,6 +24,9 @@ models/
 logs/
 *.log
 
+# Caché del índice de embeddings (se regenera solo; ver comboy/classify.py)
+.comboy-embeddings.json
+
 # Sistema
 .DS_Store
 *.swp

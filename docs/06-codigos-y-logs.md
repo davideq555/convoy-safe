@@ -172,6 +172,7 @@ Ejemplos:
 | `classify.unknown` | WARN | No se reconoció ningún peligro del catálogo, o la frase lo negaba |
 | `classify.unavailable` | WARN | Servicio de embeddings no disponible o con fallo; se clasifica como `DESCONOCIDO` con confianza baja |
 | `embedding.index` | INFO | Construcción del índice de referencia en varios lotes hacia Ollama; registra la cantidad de frases (`phrases=`) y de peticiones (`batches=`) |
+| `embedding.cache` | INFO | Resolución del índice de referencia contra el caché en disco: `result=hit` si se reutilizó, `result=miss` si hubo que reconstruirlo (con `reason=` y `path=`). Ante un fallo de escritura registra `result=error` |
 | `alert.tx` | INFO | Alerta transmitida |
 | `alert.rx` | INFO | Alerta recibida de otro nodo |
 | `alert.echo` | DEBUG | Reemisión escuchada de otro nodo (acuse implícito) |

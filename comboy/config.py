@@ -26,6 +26,10 @@ from .envfile import DEFAULT_ENV_FILE, ENV_FILE_VAR, load_env_file
 VALID_TRANSPORT_KINDS = ("udp", "null", "lora")
 VALID_EMBEDDING_KINDS = ("ollama", "null")
 
+#: Ruta por defecto del caché del índice de embeddings, relativa al directorio
+#: de trabajo. Ver :class:`EmbeddingConfig`.
+DEFAULT_EMBEDDING_CACHE_PATH = ".comboy-embeddings.json"
+
 #: Variables de entorno que sobrescriben la config, y la ruta que pisan dentro
 #: del YAML. Son la forma de diferenciar nodos que comparten un mismo archivo.
 ENV_VARS: dict[str, tuple[str, ...]] = {
@@ -39,7 +43,14 @@ ENV_VARS: dict[str, tuple[str, ...]] = {
     "COMBOY_EMBEDDING_URL": ("embedding", "url"),
     "COMBOY_EMBEDDING_MODEL": ("embedding", "model"),
     "COMBOY_EMBEDDING_TIMEOUT": ("embedding", "timeout_s"),
+    "COMBOY_EMBEDDING_CACHE": ("embedding", "cache_path"),
 }
+
+#: Variables de :data:`ENV_VARS` donde un valor vacío es significativo. En el
+#: resto, una variable presente pero vacía se ignora para no pisar el YAML por
+#: accidente (ver :func:`apply_env_overrides`). El caché de embeddings usa el
+#: vacío como "deshabilitado", así que ahí sí debe llegar al cargador.
+ENV_VARS_ALLOW_EMPTY = frozenset({"COMBOY_EMBEDDING_CACHE"})
 
 
 @dataclass(frozen=True)
@@ -108,6 +119,10 @@ class EmbeddingConfig:
     petición HTTP y ``batch_size`` acota cuántas frases viajan en cada una: el
     índice de referencia se construye en lotes, así que su tiempo no crece con
     el corpus.
+
+    ``cache_path`` es el archivo donde se persiste el índice de referencia entre
+    procesos (ver :mod:`comboy.classify`). Un valor vacío **deshabilita** el
+    caché en disco: el índice se reconstruye siempre.
     """
 
     kind: str = "ollama"
@@ -117,6 +132,7 @@ class EmbeddingConfig:
     min_margin: float = 0.02
     timeout_s: float = 60.0
     batch_size: int = 16
+    cache_path: str = DEFAULT_EMBEDDING_CACHE_PATH
 
 
 @dataclass(frozen=True)
@@ -218,6 +234,11 @@ def _load_embedding(section: dict[str, Any]) -> EmbeddingConfig:
         raise ValueError(f"embedding.timeout_s debe ser mayor que 0, se obtuvo {timeout_s}")
     if batch_size < 1:
         raise ValueError(f"embedding.batch_size debe ser al menos 1, se obtuvo {batch_size}")
+    # ``cache_path: null`` en YAML (o una variable de entorno vacía) deshabilita
+    # el caché en disco, igual que la cadena vacía. Un ``None`` no debe
+    # convertirse en la ruta literal "None".
+    raw_cache = section.get("cache_path", DEFAULT_EMBEDDING_CACHE_PATH)
+    cache_path = "" if raw_cache is None else str(raw_cache)
     return EmbeddingConfig(
         kind=kind,
         url=str(section.get("url", "http://localhost:11434")),
@@ -226,6 +247,7 @@ def _load_embedding(section: dict[str, Any]) -> EmbeddingConfig:
         min_margin=min_margin,
         timeout_s=timeout_s,
         batch_size=batch_size,
+        cache_path=cache_path,
     )
 
 
@@ -275,13 +297,17 @@ def apply_env_overrides(data: dict[str, Any] | None) -> dict[str, Any]:
 
     El entorno gana sobre el archivo. Una variable presente pero vacía se
     ignora: así ``COMBOY_UDP_PEERS=`` no borra la lista del YAML por accidente.
+    La excepción son las de :data:`ENV_VARS_ALLOW_EMPTY`, donde el vacío es un
+    valor válido (``COMBOY_EMBEDDING_CACHE=`` deshabilita el caché en disco).
     """
 
     env = effective_env()
     result: dict[str, Any] = deepcopy(data) if data else {}
     for name, path in ENV_VARS.items():
         raw = env.get(name)
-        if raw is None or raw.strip() == "":
+        if raw is None:
+            continue
+        if raw.strip() == "" and name not in ENV_VARS_ALLOW_EMPTY:
             continue
         cursor = result
         for key in path[:-1]:
@@ -338,8 +364,10 @@ def load_config(path: str | Path | None) -> Config:
 
 
 __all__ = [
+    "DEFAULT_EMBEDDING_CACHE_PATH",
     "ENV_FILE_VAR",
     "ENV_VARS",
+    "ENV_VARS_ALLOW_EMPTY",
     "VALID_EMBEDDING_KINDS",
     "VALID_TRANSPORT_KINDS",
     "AudioConfig",

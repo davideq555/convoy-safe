@@ -91,6 +91,26 @@ def test_embedding_usa_los_valores_por_defecto() -> None:
     assert config.embedding.min_margin == 0.02
     assert config.embedding.timeout_s == 60.0
     assert config.embedding.batch_size == 16
+    assert config.embedding.cache_path == ".comboy-embeddings.json"
+
+
+def test_embedding_cache_se_puede_cambiar_por_entorno(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COMBOY_EMBEDDING_CACHE", "/tmp/mi-cache.json")
+    config = config_from_mapping({})
+    assert config.embedding.cache_path == "/tmp/mi-cache.json"
+
+
+def test_embedding_cache_vacio_deshabilita_el_disco(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A diferencia del resto de las variables, acá el vacío es significativo:
+    # es la forma de apagar el caché en disco sin borrar la clave del YAML.
+    monkeypatch.setenv("COMBOY_EMBEDDING_CACHE", "")
+    config = config_from_mapping({"embedding": {"cache_path": "/tmp/otro.json"}})
+    assert config.embedding.cache_path == ""
+
+
+def test_embedding_cache_null_en_yaml_deshabilita() -> None:
+    config = config_from_mapping({"embedding": {"cache_path": None}})
+    assert config.embedding.cache_path == ""
 
 
 def test_embedding_kind_null_de_yaml_es_el_cliente_sin_red() -> None:

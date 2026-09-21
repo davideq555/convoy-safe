@@ -71,11 +71,12 @@ def _config_sin_red(tmp_path: Path) -> str:
     """Escribe un YAML con ``embedding.kind: null`` y devuelve su ruta.
 
     El ``null`` va sin comillas a propósito: es la forma natural de escribirlo y
-    el cargador la acepta como el cliente sin red.
+    el cargador la acepta como el cliente sin red. El ``cache_path`` vacío
+    deshabilita el caché en disco para no escribir en el directorio del repo.
     """
 
     ruta = tmp_path / "sin-red.yaml"
-    ruta.write_text("embedding:\n  kind: null\n", encoding="utf-8")
+    ruta.write_text('embedding:\n  kind: null\n  cache_path: ""\n', encoding="utf-8")
     return str(ruta)
 
 

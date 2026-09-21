@@ -17,7 +17,10 @@ from comboy.normalize import normalize
 #: Dimensión de trabajo: un eje por peligro del catálogo.
 DIM = len(Hazard)
 
-CONFIG = EmbeddingConfig(kind="null")
+# El caché en disco se deshabilita acá: estos tests construyen clientes falsos
+# que no comparten vectores con el corpus real. La persistencia tiene sus
+# propios tests en ``test_reference_cache.py``.
+CONFIG = EmbeddingConfig(kind="null", cache_path="")
 
 
 def _vector_peligro(hazard: Hazard) -> list[float]:
