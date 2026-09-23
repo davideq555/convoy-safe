@@ -190,6 +190,8 @@ Ejemplos:
 | `tts.unavailable` | WARN | Motor de TTS no disponible; el nodo continúa sin audio |
 | `mic.unavailable` | WARN | Micrófono no disponible (`arecord` ausente o falló); el nodo continúa sin captura |
 | `wakeword.unavailable` | WARN | Modelo de wake word ausente o no cargable; la detección queda desactivada |
+| `voice.transcript` | INFO | Transcripción de la frase hablada con vocabulario libre, con el texto reconocido (`texto=`) |
+| `voice.unavailable` | WARN | Modelo de transcripción ausente o no cargable; el comando `voice` no puede continuar |
 | `led.state` | DEBUG | Cambio de estado del LED |
 | `power.low` | ERROR | Tensión de alimentación fuera de rango, si se mide |
 

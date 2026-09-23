@@ -240,7 +240,7 @@ Cada nivel aísla un componente. Cuando algo falla, se sabe dónde mirar.
 |---|---|---|---|
 | **L0** | Transporte + TTS | El PC envía una trama fija hardcodeada; la Pi la anuncia | La Pi pronuncia la frase correcta y ambos nodos lo registran en el log |
 | **L1** | Clasificador + transporte + TTS | El PC toma una frase **escrita** por consola, la clasifica y la envía | La frase escrita produce el código correcto y la Pi lo anuncia |
-| **L2** | Pipeline de audio completo | El PC: wake word → VAD → STT → clasificar → enviar | Hablando, el sistema produce el código correcto de punta a punta |
+| **L2** | Pipeline de audio completo | El PC: wake word → VAD → STT → clasificar → enviar; el tramo STT + clasificación también se prueba solo con `python -m comboy voice --wav ... --no-send` | Hablando, el sistema produce el código correcto de punta a punta |
 | **L3** | Protocolo bajo estrés | L2 con `LossyTransport` activo (10–40% de pérdida) | Las alertas llegan igual o el sistema informa quién no las recibió |
 | **L4** | Radio real, alcance | Cambiar `UdpTransport` por `LoraTransport` | Ver Fase 5 de la [hoja de ruta](08-hoja-de-ruta.md) |
 
@@ -262,6 +262,21 @@ Eso permite probar el clasificador y el protocolo sin depender de que el wake
 word haya disparado, y sin hacer ruido. Es la herramienta que más se va a usar
 durante el desarrollo, porque elimina la parte más frágil del sistema de la
 ecuación mientras se trabaja en el resto.
+
+### Probar la transcripción sin micrófono
+
+El comando `voice` cierra la cadena de la Fase 2: transcribe la frase hablada con
+Vosk en **vocabulario libre** (sin gramática restringida, a diferencia del wake
+word), la clasifica y envía la trama. Sin micrófono se prueba con un WAV 16 kHz
+mono s16:
+
+```bash
+python -m comboy voice --wav frase.wav --no-send
+```
+
+Valida que la frase hablada llegue al clasificador y se convierta en una trama de
+17 bytes. `--no-send` clasifica y muestra sin transmitir, `--seconds` acota la
+captura y, si no se reconoce texto, no se envía nada.
 
 ## Advertencia: el PC no es la Pi
 
