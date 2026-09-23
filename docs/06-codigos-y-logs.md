@@ -192,6 +192,7 @@ Ejemplos:
 | `wakeword.unavailable` | WARN | Modelo de wake word ausente o no cargable; la detección queda desactivada |
 | `voice.transcript` | INFO | Transcripción de la frase hablada con vocabulario libre, con el texto reconocido (`texto=`) |
 | `voice.unavailable` | WARN | Modelo de transcripción ausente o no cargable; el comando `voice` no puede continuar |
+| `talk.empty` | INFO | La wake word se detectó pero no siguió ninguna frase: falso positivo. El comando `talk` vuelve a escuchar sin enviar |
 | `led.state` | DEBUG | Cambio de estado del LED |
 | `power.low` | ERROR | Tensión de alimentación fuera de rango, si se mide |
 

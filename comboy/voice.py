@@ -94,6 +94,12 @@ class VoskTranscriber:
     Cargar el modelo tarda segundos, así que se hace **una sola vez** en el
     constructor. Si el modelo no está —o ``vosk`` no está instalado— el
     transcriber queda no disponible y nunca lanza.
+
+    Con el parámetro ``model`` se puede reutilizar un modelo ya cargado (por
+    ejemplo el del wake word) en vez de cargar otro: así el nodo que une wake
+    word y transcripción no paga dos veces la carga del modelo ni mantiene dos
+    copias en RAM. Cuando ``model`` es ``None`` el comportamiento es el de
+    siempre: se valida ``model_path`` y se carga desde disco.
     """
 
     def __init__(
@@ -102,6 +108,7 @@ class VoskTranscriber:
         *,
         rate: int = 16000,
         logger: Logger | None = None,
+        model: Any = None,
     ) -> None:
         self._logger = logger
         self._rate = rate
@@ -109,13 +116,17 @@ class VoskTranscriber:
         self._recognizer: Any = None
         self._last_text = ""
 
-        path = Path(model_path)
-        if not path.is_dir():
-            self._warn_unavailable(model=model_path, motivo="modelo ausente")
-            return
+        # Un modelo ya cargado se reutiliza tal cual: no se valida ni se carga
+        # nada de disco. Solo sin modelo compartido se comprueba el directorio.
+        if model is None:
+            path = Path(model_path)
+            if not path.is_dir():
+                self._warn_unavailable(model=model_path, motivo="modelo ausente")
+                return
 
         # Import perezoso: el módulo debe poder importarse (y el resto de los
-        # comandos funcionar) aunque vosk no esté instalado.
+        # comandos funcionar) aunque vosk no esté instalado. Aun con un modelo
+        # compartido hace falta ``KaldiRecognizer`` para construir el recognizer.
         try:
             from vosk import KaldiRecognizer, Model, SetLogLevel
         except Exception as exc:
@@ -124,7 +135,8 @@ class VoskTranscriber:
 
         try:
             SetLogLevel(-1)  # silencia el logging interno de kaldi
-            model = Model(str(path))
+            if model is None:
+                model = Model(str(path))
             # Sin el tercer argumento de gramática: vocabulario libre. Ver el
             # docstring del módulo.
             self._recognizer = KaldiRecognizer(model, rate)
@@ -215,6 +227,7 @@ def create_transcriber(
     *,
     rate: int = 16000,
     logger: Logger | None = None,
+    model: Any = None,
 ) -> Transcriber:
     """Construye el transcriber adecuado para ``model_path``.
 
@@ -222,8 +235,12 @@ def create_transcriber(
     puede quedar no disponible igual si ``vosk`` falta o el modelo no carga). Si
     no existe, devuelve :class:`NullTranscriber`: el sistema degrada sin vosk en
     vez de fallar al importar.
+
+    Con ``model`` ya cargado se devuelve :class:`VoskTranscriber` sin importar
+    ``model_path``: el modelo compartido manda y no hay que volver a tocar el
+    disco. Un ``model`` en ``None`` cae en el comportamiento de siempre.
     """
 
-    if Path(model_path).is_dir():
-        return VoskTranscriber(model_path, rate=rate, logger=logger)
+    if model is not None or Path(model_path).is_dir():
+        return VoskTranscriber(model_path, rate=rate, logger=logger, model=model)
     return NullTranscriber()

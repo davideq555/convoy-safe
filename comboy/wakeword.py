@@ -142,6 +142,18 @@ class VoskWakeWord:
 
         return self._last_text
 
+    @property
+    def model(self) -> Any:
+        """Modelo de Vosk ya cargado, o ``None`` si el detector no está disponible.
+
+        Se expone para poder **compartirlo**: :class:`comboy.voice.VoskTranscriber`
+        construye su recognizer sobre el mismo modelo en vez de cargar un segundo,
+        que costaría segundos de latencia y RAM. Mientras exista el detector, el
+        modelo sigue vivo y el transcriber puede apoyarse en él.
+        """
+
+        return self._model
+
     def _warn_unavailable(self, **extra: object) -> None:
         if self._logger is not None:
             self._logger.warn("wakeword.unavailable", **extra)

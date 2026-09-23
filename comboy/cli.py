@@ -6,6 +6,8 @@ Subcomandos:
     listen    Escucha el micrófono, detecta la wake word y envía la alerta.
     voice     Escucha el micrófono, transcribe la frase libre, la clasifica y
               envía la alerta.
+    talk      Detecta la wake word, transcribe la frase libre, la clasifica y
+              envía la alerta (une ``listen`` y ``voice``).
     text      Clasifica una frase escrita y muestra el código resultante (L1).
     selftest  Autoprueba offline (CRC, round-trip del codec, rechazo de
               tramas corruptas, frase).
@@ -53,70 +55,38 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
 
     run_parser = subparsers.add_parser("run", help="corre el loop de recepción del nodo")
-    run_parser.add_argument(
-        "--config",
-        default=None,
-        help="ruta al archivo de config YAML (valores por defecto si se omite)",
-    )
+    _add_config_argument(run_parser)
 
     send_parser = subparsers.add_parser("send", help="construye y envía una trama de alerta")
-    send_parser.add_argument(
-        "--config",
-        default=None,
-        help="ruta al archivo de config YAML (valores por defecto si se omite)",
-    )
+    _add_config_argument(send_parser)
     _add_alert_arguments(send_parser)
 
     listen_parser = subparsers.add_parser(
         "listen", help="escucha el micrófono y envía una alerta al detectar la wake word"
     )
-    listen_parser.add_argument(
-        "--config",
-        default=None,
-        help="ruta al archivo de config YAML (valores por defecto si se omite)",
-    )
-    listen_parser.add_argument(
-        "--wav",
-        default=None,
-        help="lee un WAV 16 kHz mono s16 en vez del micrófono (para probar sin micrófono)",
-    )
+    _add_config_argument(listen_parser)
+    _add_wav_argument(listen_parser)
     _add_alert_arguments(listen_parser)
 
     voice_parser = subparsers.add_parser(
         "voice",
         help="escucha el micrófono, transcribe la frase y la clasifica antes de enviarla",
     )
-    voice_parser.add_argument(
-        "--config",
-        default=None,
-        help="ruta al archivo de config YAML (valores por defecto si se omite)",
+    _add_config_argument(voice_parser)
+    _add_wav_argument(voice_parser)
+    _add_capture_arguments(voice_parser)
+    _add_json_argument(voice_parser)
+    _add_origin_arguments(voice_parser)
+
+    talk_parser = subparsers.add_parser(
+        "talk",
+        help="detecta la wake word, transcribe la frase libre y la clasifica antes de enviarla",
     )
-    voice_parser.add_argument(
-        "--wav",
-        default=None,
-        help="lee un WAV 16 kHz mono s16 en vez del micrófono (para probar sin micrófono)",
-    )
-    voice_parser.add_argument(
-        "--seconds",
-        type=float,
-        default=8.0,
-        help="tope de captura en segundos (por defecto 8)",
-    )
-    voice_parser.add_argument(
-        "--json", action="store_true", help="imprime el resultado como objeto JSON"
-    )
-    voice_parser.add_argument(
-        "--no-send",
-        dest="no_send",
-        action="store_true",
-        help="clasifica y muestra el resultado pero no transmite la alerta",
-    )
-    voice_parser.add_argument(
-        "--origin-id", type=int, default=None, help="sobrescribe el id de nodo configurado"
-    )
-    voice_parser.add_argument(
-        "--alert-id", type=lambda value: int(value, 0), default=None, help="id de alerta explícito"
-    )
+    _add_config_argument(talk_parser)
+    _add_wav_argument(talk_parser)
+    _add_capture_arguments(talk_parser)
+    _add_json_argument(talk_parser)
+    _add_origin_arguments(talk_parser)
 
     text_parser = subparsers.add_parser(
         "text", help="clasifica una frase escrita y muestra el código resultante"
@@ -124,18 +94,87 @@ def build_parser() -> argparse.ArgumentParser:
     text_parser.add_argument(
         "phrase", help='frase del conductor, p. ej. "hay piedras en la calzada"'
     )
-    text_parser.add_argument(
-        "--config",
-        default=None,
-        help="ruta al archivo de config YAML (valores por defecto si se omite)",
-    )
-    text_parser.add_argument(
-        "--json", action="store_true", help="imprime la clasificación como objeto JSON"
-    )
+    _add_config_argument(text_parser)
+    _add_json_argument(text_parser)
 
     subparsers.add_parser("selftest", help="corre las autopruebas offline (sin red)")
 
     return parser
+
+
+def _add_config_argument(parser: argparse.ArgumentParser) -> None:
+    """Agrega ``--config``, compartido por todos los subcomandos.
+
+    Existe para no repetir seis veces la misma definición: una sola fuente de
+    verdad para el default y el help del flag.
+    """
+
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="ruta al archivo de config YAML (valores por defecto si se omite)",
+    )
+
+
+def _add_wav_argument(parser: argparse.ArgumentParser) -> None:
+    """Agrega ``--wav``, compartido por ``listen``, ``voice`` y ``talk``.
+
+    Centraliza el modo de prueba sin micrófono para que su help no diverja entre
+    subcomandos.
+    """
+
+    parser.add_argument(
+        "--wav",
+        default=None,
+        help="lee un WAV 16 kHz mono s16 en vez del micrófono (para probar sin micrófono)",
+    )
+
+
+def _add_json_argument(parser: argparse.ArgumentParser) -> None:
+    """Agrega ``--json``, compartido por ``voice``, ``talk`` y ``text``.
+
+    Una sola definición evita que el texto de ayuda del flag de salida JSON se
+    desincronice entre los subcomandos.
+    """
+
+    parser.add_argument("--json", action="store_true", help="imprime el resultado como objeto JSON")
+
+
+def _add_origin_arguments(parser: argparse.ArgumentParser) -> None:
+    """Agrega ``--origin-id`` y ``--alert-id`` para los subcomandos de alerta.
+
+    Este helper elimina la doble fuente de verdad: antes estos dos flags se
+    definían a mano dentro de ``_add_alert_arguments`` y otra vez en ``voice`` y
+    ``talk``, con riesgo de que los help divergieran.
+    """
+
+    parser.add_argument(
+        "--origin-id", type=int, default=None, help="sobrescribe el id de nodo configurado"
+    )
+    parser.add_argument(
+        "--alert-id", type=lambda value: int(value, 0), default=None, help="id de alerta explícito"
+    )
+
+
+def _add_capture_arguments(parser: argparse.ArgumentParser) -> None:
+    """Agrega ``--seconds`` y ``--no-send``, compartidos por ``voice`` y ``talk``.
+
+    Agrupa el tope de captura de la frase y el corte de transmisión para no
+    repetirlos en cada subcomando de voz.
+    """
+
+    parser.add_argument(
+        "--seconds",
+        type=float,
+        default=8.0,
+        help="tope de captura de la frase en segundos (por defecto 8)",
+    )
+    parser.add_argument(
+        "--no-send",
+        dest="no_send",
+        action="store_true",
+        help="clasifica y muestra el resultado pero no transmite la alerta",
+    )
 
 
 def _add_alert_arguments(parser: argparse.ArgumentParser) -> None:
@@ -158,12 +197,7 @@ def _add_alert_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--confidence", default="ALTA", help="nombre del código de confianza, p. ej. ALTA"
     )
-    parser.add_argument(
-        "--origin-id", type=int, default=None, help="sobrescribe el id de nodo configurado"
-    )
-    parser.add_argument(
-        "--alert-id", type=lambda value: int(value, 0), default=None, help="id de alerta explícito"
-    )
+    _add_origin_arguments(parser)
 
 
 def _make_logger(config: Config) -> Logger:
@@ -541,6 +575,142 @@ def _voice(args: argparse.Namespace) -> int:
         logger.close()
 
 
+def _talk(args: argparse.Namespace) -> int:
+    """Detecta la wake word, transcribe la frase libre y envía la alerta clasificada.
+
+    Une las dos mitades de la Fase 2: ``listen`` (wake word) y ``voice``
+    (transcripción libre + clasificación). El nodo escucha de forma continua:
+    cada wake word abre una ventana de captura, la frase se clasifica y se
+    transmite, y después vuelve a escuchar.
+
+    Dos decisiones no obvias:
+
+    * El fragmento que despierta al detector **no** se le pasa al transcriber:
+      contiene la wake word y re-decodificarlo ensuciaría la frase. La frase
+      empieza en el fragmento siguiente.
+    * Una frase vacía **no** es un error, a diferencia de ``voice``: significa
+      que la wake word se disparó sola (un falso positivo). Se registra y se
+      vuelve a escuchar en vez de abortar, porque este nodo corre siempre.
+
+    No hay gate de confianza: si la clasificación da ``DESCONOCIDO`` se envía
+    igual, por decisión del dueño.
+
+    Con ``--wav FILE`` se lee un WAV 16 kHz mono s16 en vez del micrófono, y con
+    ``--no-send`` se clasifica y muestra sin transmitir.
+    """
+
+    config = load_config(args.config)
+
+    try:
+        origin_id = _resolve_origin_id(args, config)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    # Se valida la fuente antes de cargar el modelo (que tarda segundos): un
+    # WAV mal formado debe fallar rápido y con un mensaje claro.
+    microphone: Microphone | None = None
+    if args.wav:
+        try:
+            chunks = wav_chunks(args.wav)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        source = "wav"
+    else:
+        source = "mic"
+
+    logger = _make_logger(config)
+    transport = create_transport(config, logger)
+    speaker = Speaker(voice=config.audio.tts_voice, logger=logger)
+    node = Node(config, transport, logger, speaker)
+
+    try:
+        if source == "mic":
+            microphone = Microphone(logger=logger)
+            chunks = microphone.chunks()
+
+        # El detector carga el modelo una sola vez y el transcriber lo reutiliza:
+        # un segundo modelo costaría segundos de latencia al despertar y el doble
+        # de RAM. Por eso el detector se construye primero.
+        detector = VoskWakeWord(DEFAULT_MODEL_PATH, phrase=config.audio.wake_word, logger=logger)
+        transcriber = create_transcriber(DEFAULT_MODEL_PATH, logger=logger, model=detector.model)
+        if not detector.available or not transcriber.available:
+            print(
+                "error: no hay wake word ni transcripción disponibles: revisá que la "
+                f"dependencia 'vosk' esté instalada y que el modelo esté en "
+                f"{DEFAULT_MODEL_PATH!r} (descargalo y descomprimilo en models/)",
+                file=sys.stderr,
+            )
+            return 2
+
+        client = create_embedding_client(config.embedding, logger)
+        iterador = iter(chunks)
+
+        try:
+            # Bucle externo: re-arma la fase de wake word después de cada alerta.
+            while True:
+                # Fase wake word: se avanza hasta que el detector despierte.
+                despertado = False
+                for chunk in iterador:
+                    if detector.accept(chunk):
+                        despertado = True
+                        break
+                if not despertado:
+                    # La fuente se agotó (WAV) sin wake word: salida limpia.
+                    break
+
+                logger.info(
+                    "wake_word",
+                    phrase=config.audio.wake_word,
+                    text=detector.last_text,
+                    source=source,
+                )
+
+                # Fase frase: el fragmento que despertó no se re-decoda. El
+                # tope ``--seconds`` es de seguridad; la frase normalmente cierra
+                # por silencio, cuando Vosk emite un resultado final.
+                texto = ""
+                samples = 0
+                deadline = time.monotonic() + args.seconds
+                for chunk in iterador:
+                    samples += len(chunk)
+                    reconocido = transcriber.accept(chunk)
+                    if reconocido:
+                        texto = reconocido
+                        break
+                    if time.monotonic() >= deadline:
+                        break
+                # Una fuente finita (WAV) o un corte pueden terminar sin silencio
+                # de cierre: se cierra la frase en curso para no perder el tramo.
+                if not texto:
+                    texto = transcriber.flush()
+
+                if not texto.strip():
+                    # Wake word sola: no es un error, se vuelve a escuchar.
+                    logger.info("talk.empty", source=source)
+                    continue
+
+                result = classify(texto, client, config.embedding, logger)
+                logger.info("voice.transcript", texto=texto, source=source, samples=samples)
+
+                frame = _build_classified_frame(result, args, config, origin_id)
+                if not args.no_send:
+                    node.send_alert(frame)
+
+                _print_voice_result(texto, result, no_send=args.no_send, as_json=args.json)
+                # Vuelve a la fase de wake word: el nodo sigue escuchando.
+        except KeyboardInterrupt:
+            pass
+    finally:
+        if microphone is not None:
+            microphone.close()
+        node.close()
+        logger.info("shutdown")
+        logger.close()
+    return 0
+
+
 def _text(args: argparse.Namespace) -> int:
     """Clasifica una frase escrita (nivel L1) y muestra el resultado.
 
@@ -671,6 +841,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _listen(args)
     if args.command == "voice":
         return _voice(args)
+    if args.command == "talk":
+        return _talk(args)
     if args.command == "text":
         return _text(args)
     if args.command == "selftest":

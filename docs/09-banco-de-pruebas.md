@@ -240,7 +240,7 @@ Cada nivel aísla un componente. Cuando algo falla, se sabe dónde mirar.
 |---|---|---|---|
 | **L0** | Transporte + TTS | El PC envía una trama fija hardcodeada; la Pi la anuncia | La Pi pronuncia la frase correcta y ambos nodos lo registran en el log |
 | **L1** | Clasificador + transporte + TTS | El PC toma una frase **escrita** por consola, la clasifica y la envía | La frase escrita produce el código correcto y la Pi lo anuncia |
-| **L2** | Pipeline de audio completo | El PC: wake word → VAD → STT → clasificar → enviar; el tramo STT + clasificación también se prueba solo con `python -m comboy voice --wav ... --no-send` | Hablando, el sistema produce el código correcto de punta a punta |
+| **L2** | Pipeline de audio completo | El PC: wake word → VAD → STT → clasificar → enviar. Es exactamente `python -m comboy talk`; el tramo STT + clasificación también se prueba solo con `python -m comboy voice --wav ... --no-send`, y la cadena completa sin micrófono con `python -m comboy talk --wav ... --no-send` | Hablando, el sistema produce el código correcto de punta a punta |
 | **L3** | Protocolo bajo estrés | L2 con `LossyTransport` activo (10–40% de pérdida) | Las alertas llegan igual o el sistema informa quién no las recibió |
 | **L4** | Radio real, alcance | Cambiar `UdpTransport` por `LoraTransport` | Ver Fase 5 de la [hoja de ruta](08-hoja-de-ruta.md) |
 
@@ -277,6 +277,23 @@ python -m comboy voice --wav frase.wav --no-send
 Valida que la frase hablada llegue al clasificador y se convierta en una trama de
 17 bytes. `--no-send` clasifica y muestra sin transmitir, `--seconds` acota la
 captura y, si no se reconoce texto, no se envía nada.
+
+### Probar la cadena completa, wake word incluida, sin micrófono
+
+El comando `talk` une `listen` y `voice`: espera la wake word, transcribe la frase
+libre, la clasifica y envía. Es el nivel L2 completo en un solo comando. Sin
+micrófono se prueba con un WAV 16 kHz mono s16 que contenga la wake word seguida
+de la frase:
+
+```bash
+python -m comboy talk --wav frase-con-wakeword.wav --no-send
+```
+
+`--no-send` clasifica y muestra sin transmitir. `--seconds` es solo un **tope de
+seguridad** para la ventana de frase: en operación normal la frase termina por
+silencio (Vosk emite el resultado final al detectar la pausa), no por tiempo. Si
+la wake word se dispara sola y no sigue ninguna frase, el comando registra
+`talk.empty` y vuelve a escuchar sin enviar: un falso positivo no corta el nodo.
 
 ## Advertencia: el PC no es la Pi
 
