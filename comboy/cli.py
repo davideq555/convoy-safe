@@ -4,6 +4,8 @@ Subcomandos:
     run       Corre el loop de recepción del nodo.
     send      Construye y transmite una trama de alerta.
     listen    Escucha el micrófono, detecta la wake word y envía la alerta.
+    voice     Escucha el micrófono, transcribe la frase libre, la clasifica y
+              envía la alerta.
     text      Clasifica una frase escrita y muestra el código resultante (L1).
     selftest  Autoprueba offline (CRC, round-trip del codec, rechazo de
               tramas corruptas, frase).
@@ -15,10 +17,11 @@ import argparse
 import json
 import random
 import sys
+import time
 from collections.abc import Sequence
 
 from . import __version__
-from .classify import classify
+from .classify import Classification, classify
 from .codes import (
     DIST_UNKNOWN,
     Confidence,
@@ -37,6 +40,7 @@ from .node import Node
 from .phrase import build_phrase
 from .transport import create_transport
 from .tts import Speaker
+from .voice import create_transcriber
 from .wakeword import DEFAULT_MODEL_PATH, VoskWakeWord
 
 
@@ -77,6 +81,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="lee un WAV 16 kHz mono s16 en vez del micrófono (para probar sin micrófono)",
     )
     _add_alert_arguments(listen_parser)
+
+    voice_parser = subparsers.add_parser(
+        "voice",
+        help="escucha el micrófono, transcribe la frase y la clasifica antes de enviarla",
+    )
+    voice_parser.add_argument(
+        "--config",
+        default=None,
+        help="ruta al archivo de config YAML (valores por defecto si se omite)",
+    )
+    voice_parser.add_argument(
+        "--wav",
+        default=None,
+        help="lee un WAV 16 kHz mono s16 en vez del micrófono (para probar sin micrófono)",
+    )
+    voice_parser.add_argument(
+        "--seconds",
+        type=float,
+        default=8.0,
+        help="tope de captura en segundos (por defecto 8)",
+    )
+    voice_parser.add_argument(
+        "--json", action="store_true", help="imprime el resultado como objeto JSON"
+    )
+    voice_parser.add_argument(
+        "--no-send",
+        dest="no_send",
+        action="store_true",
+        help="clasifica y muestra el resultado pero no transmite la alerta",
+    )
+    voice_parser.add_argument(
+        "--origin-id", type=int, default=None, help="sobrescribe el id de nodo configurado"
+    )
+    voice_parser.add_argument(
+        "--alert-id", type=lambda value: int(value, 0), default=None, help="id de alerta explícito"
+    )
 
     text_parser = subparsers.add_parser(
         "text", help="clasifica una frase escrita y muestra el código resultante"
@@ -212,6 +252,35 @@ def _build_alert_frame(
     )
 
 
+def _build_classified_frame(
+    result: Classification,
+    args: argparse.Namespace,
+    config: Config,
+    origin_id: int,
+) -> AlertFrame:
+    """Construye la trama de alerta con los campos de una :class:`Classification`.
+
+    ``Classification`` ya trae ``hazard``, ``lane``, ``dist_km``, ``urgency`` y
+    ``confidence``, que son exactamente los campos de la trama. Este helper evita
+    forzar el resultado a un ``argparse.Namespace`` como hacen ``send``/``listen``.
+    """
+
+    alert_id = args.alert_id if args.alert_id is not None else random.getrandbits(32)
+    return AlertFrame(
+        msg_type=MsgType.ALERTA,
+        alert_id=alert_id & 0xFFFFFFFF,
+        origin_id=origin_id,
+        origin_role=int(role_from_name(config.node.role)),
+        hop=0,
+        ttl=3,  # docs/03: el ttl se inicializa en 3
+        hazard=int(result.hazard),
+        lane=int(result.lane),
+        dist_km=result.dist_km,
+        urgency=int(result.urgency),
+        confidence=int(result.confidence),
+    )
+
+
 def _run(args: argparse.Namespace) -> int:
     config = load_config(args.config)
     logger = _make_logger(config)
@@ -331,6 +400,145 @@ def _listen(args: argparse.Namespace) -> int:
         logger.info("shutdown")
         logger.close()
     return 0
+
+
+def _print_voice_result(
+    texto: str,
+    result: Classification,
+    *,
+    no_send: bool,
+    as_json: bool,
+) -> None:
+    """Imprime el texto reconocido y la clasificación, al estilo de ``_text``."""
+
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "texto": texto,
+                    "hazard": result.hazard.name,
+                    "lane": result.lane.name,
+                    "dist_km": result.dist_km,
+                    "urgency": result.urgency.name,
+                    "confidence": result.confidence.name,
+                    "similarity": round(result.similarity, 4),
+                    "margin": round(result.margin, 4),
+                },
+                ensure_ascii=False,
+            )
+        )
+        # El objeto JSON debe quedar solo en stdout: la aclaración va a stderr.
+        if no_send:
+            print("(no se transmitió: --no-send)", file=sys.stderr)
+        return
+
+    distancia = "desconocida" if result.dist_km == DIST_UNKNOWN else f"{result.dist_km} km"
+    print(f"{'texto':<9} : {texto}")
+    print(f"{'peligro':<9} : {result.hazard.name}")
+    print(f"{'carril':<9} : {result.lane.name}")
+    print(f"{'distancia':<9} : {distancia}")
+    print(f"{'urgencia':<9} : {result.urgency.name}")
+    print(f"{'confianza':<9} : {result.confidence.name}")
+    print(f"{'similitud':<9} : {result.similarity:.4f}")
+    print(f"{'margen':<9} : {result.margin:.4f}")
+    if no_send:
+        print("(no se transmitió: --no-send)")
+
+
+def _voice(args: argparse.Namespace) -> int:
+    """Transcribe una frase hablada, la clasifica y envía la alerta.
+
+    El conductor habla por el micrófono, Vosk transcribe con **vocabulario
+    libre** (ver :mod:`comboy.voice`), el clasificador elige un código y la
+    trama de 17 bytes sale por el canal. No hay gate de confianza ni confirmación:
+    si la clasificación se equivoca, se manda igual (decisión del dueño).
+
+    Con ``--wav FILE`` se lee un WAV 16 kHz mono s16 en vez del micrófono, y con
+    ``--no-send`` se clasifica y muestra sin transmitir. Ambas opciones permiten
+    probar la cadena sin micrófono ni red.
+    """
+
+    config = load_config(args.config)
+
+    try:
+        origin_id = _resolve_origin_id(args, config)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    # Se valida la fuente antes de cargar el modelo (que tarda segundos): un
+    # WAV mal formado debe fallar rápido y con un mensaje claro.
+    microphone: Microphone | None = None
+    if args.wav:
+        try:
+            chunks = wav_chunks(args.wav)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        source = "wav"
+    else:
+        source = "mic"
+
+    logger = _make_logger(config)
+    transport = create_transport(config, logger)
+    speaker = Speaker(voice=config.audio.tts_voice, logger=logger)
+    node = Node(config, transport, logger, speaker)
+
+    try:
+        if source == "mic":
+            microphone = Microphone(logger=logger)
+            chunks = microphone.chunks()
+
+        transcriber = create_transcriber(DEFAULT_MODEL_PATH, logger=logger)
+        if not transcriber.available:
+            print(
+                "error: no hay transcripción disponible: revisá que la dependencia "
+                f"'vosk' esté instalada y que el modelo esté en {DEFAULT_MODEL_PATH!r} "
+                "(descargalo y descomprimilo en models/)",
+                file=sys.stderr,
+            )
+            return 2
+
+        texto = ""
+        samples = 0
+        deadline = time.monotonic() + args.seconds
+        try:
+            for chunk in chunks:
+                samples += len(chunk)
+                reconocido = transcriber.accept(chunk)
+                if reconocido:
+                    texto = reconocido
+                    break
+                if time.monotonic() >= deadline:
+                    break
+        except KeyboardInterrupt:
+            pass
+        # Una fuente finita (WAV) o un corte pueden terminar sin silencio de
+        # cierre: se cierra la frase en curso para no perder el último tramo.
+        if not texto:
+            texto = transcriber.flush()
+
+        if not texto.strip():
+            print("error: no se reconoció nada, probá de nuevo", file=sys.stderr)
+            return 2
+
+        client = create_embedding_client(config.embedding, logger)
+        result = classify(texto, client, config.embedding, logger)
+
+        logger.info("voice.transcript", texto=texto, source=source, samples=samples)
+
+        frame = _build_classified_frame(result, args, config, origin_id)
+        if not args.no_send:
+            node.send_alert(frame)
+
+        _print_voice_result(texto, result, no_send=args.no_send, as_json=args.json)
+        return 0
+    finally:
+        if microphone is not None:
+            microphone.close()
+        node.close()
+        logger.info("shutdown")
+        logger.close()
 
 
 def _text(args: argparse.Namespace) -> int:
@@ -461,6 +669,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _send(args)
     if args.command == "listen":
         return _listen(args)
+    if args.command == "voice":
+        return _voice(args)
     if args.command == "text":
         return _text(args)
     if args.command == "selftest":

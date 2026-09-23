@@ -1,6 +1,20 @@
-# Dependencies for comboy-safe (Phase 0): runtime + development tools.
-# Keep this list minimal: the design docs forbid extra dependencies.
+# Dependencias de comboy-safe: runtime + herramientas de desarrollo.
+# Mantené esta lista mínima: el diseño prohíbe dependencias de más.
+#
+# Solo van las dependencias DIRECTAS. Las transitivas —las que pip instala solo,
+# como cffi/requests/srt/tqdm/websockets que arrastra vosk, o iniconfig/pluggy
+# que arrastra pytest— NO se declaran acá: declararlas congela versiones que no
+# elegimos y hay que mantener a mano.
+#
+# `pip freeze` NO es este archivo. Sirve para diagnosticar qué hay instalado,
+# pero es una foto de una máquina (el PC es x86_64 y la Pi es aarch64: vosk
+# publica wheels distintos por plataforma, así que un freeze del PC no describe
+# la Pi). Para ver el árbol completo: pip freeze.
+
+# --- runtime ---
 PyYAML>=6.0
 vosk>=0.3.45
+
+# --- desarrollo ---
 pytest>=7.0
 ruff>=0.16
