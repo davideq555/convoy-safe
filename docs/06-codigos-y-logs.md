@@ -143,7 +143,7 @@ Ejemplos:
 ```
 2026-09-18T14:32:11.123 +0001234567 boot=7f3a node=3 role=follower INFO  boot          version=0.1.0 config=loaded local=192.168.25.159:45550
 2026-09-18T14:32:12.004 +0001235448 boot=7f3a node=3 role=follower INFO  radio.init    sf=10 bw=125 freq=915000000 tx_dbm=20
-2026-09-18T14:33:05.771 +0001289215 boot=7f3a node=3 role=follower INFO  wake_word     phrase="atencion comboy" score=0.87
+2026-09-18T14:33:05.771 +0001289215 boot=7f3a node=3 role=follower INFO  wake_word     phrase="atencion comboy" text="atencion convoy" source=mic recovered_samples=32000 detect_to_send_ms=1840
 2026-09-18T14:33:06.402 +0001289846 boot=7f3a node=3 role=follower INFO  capture.end   ms=631 reason=vad_silence
 2026-09-18T14:33:07.510 +0001290954 boot=7f3a node=3 role=follower INFO  stt.result    ms=1108 text="hay piedras en el carril derecho a dos kilometros"
 2026-09-18T14:33:07.521 +0001290965 boot=7f3a node=3 role=follower INFO  classify      hazard=PIEDRAS lane=DERECHO dist_km=2 urgency=PRECAUCION confidence=ALTA
@@ -163,7 +163,9 @@ Ejemplos:
 | `radio.init` | INFO | Inicialización de la radio y parámetros activos |
 | `radio.error` | ERROR | Falla de la radio |
 | `frame.invalid` | WARN | Trama descartada por longitud, versión o CRC inválidos |
-| `wake_word` | INFO | Wake word detectada, con puntaje |
+| `wake_word` | INFO | Wake word detectada: `text=` es el texto reconocido y `source=` la fuente (`mic` o `wav`). El comando `talk` agrega `recovered_samples=` (muestras de audio recuperadas del buffer rodante, las que antes se perdían entre la activación y la detección) y `detect_to_send_ms=` (ms desde la detección hasta el envío). Ver [04-audio-e-ia.md](04-audio-e-ia.md#recuperación-del-audio-posterior-a-la-wake-word-buffer-rodante) |
+| `wakeword.replay_fallback` | WARN | El detector no pudo recuperar el audio posterior a la wake word: `reason=sin_timestamp` (el resultado no traía tiempos por palabra) o `reason=fuera_del_buffer` (la wake word quedó más atrás que los 30 s del buffer). El comando cae a empezar en el chunk siguiente |
+| `wakeword.invariant_broken` | ERROR | **Bug de sincronía, no un fallback.** `wake_end_sample > total_samples_fed`: el fin de la wake word quedó más allá de todo lo alimentado, o sea que el origen de timestamps de Vosk y el del buffer se separaron. Registra `wake_end_sample=` y `total_samples_fed=` como evidencia. Si aparece en un log, hay que arreglar el detector (ver [04-audio-e-ia.md](04-audio-e-ia.md#el-invariante-un-solo-origen-temporal)) |
 | `capture.start` | DEBUG | Comienzo de captura |
 | `capture.end` | DEBUG | Fin de captura, con duración y motivo |
 | `stt.result` | INFO | Transcripción obtenida |

@@ -112,6 +112,11 @@ def _instalar_vosk_falso(monkeypatch: pytest.MonkeyPatch, texto: str) -> dict[st
         def __init__(self, model: object, rate: int) -> None:
             registros["rate"] = rate
 
+        def SetWords(self, enabled: bool) -> None:
+            # ``voice.py`` no lo usa; el método existe para que el fake no
+            # reviente si algún camino compartido lo llama.
+            registros["set_words"] = enabled
+
         def AcceptWaveform(self, data: bytes) -> bool:
             return True
 

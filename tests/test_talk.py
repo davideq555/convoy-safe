@@ -34,14 +34,19 @@ class _DetectorFalso:
 
     Con ``dispara_en=0`` nunca despierta, que es lo que hace falta para probar un
     WAV sin wake word. Expone ``model`` porque ``_talk`` lo comparte con el
-    transcriber.
+    transcriber. ``recorte`` es lo que devuelve ``audio_since_wake``: el audio
+    posterior a la wake word que ``_talk`` debe inyectar al transcriber.
     """
 
-    def __init__(self, *, disponible: bool = True, dispara_en: int = 1) -> None:
+    def __init__(
+        self, *, disponible: bool = True, dispara_en: int = 1, recorte: bytes | None = None
+    ) -> None:
         self._disponible = disponible
         self._dispara_en = dispara_en
+        self._recorte = recorte
         self.llamadas = 0
         self.resets = 0
+        self.replay_calls = 0
         self.last_text = "atencion convoy"
         self.model = object()
 
@@ -52,6 +57,10 @@ class _DetectorFalso:
     def accept(self, pcm: bytes) -> bool:
         self.llamadas += 1
         return self._disponible and self.llamadas == self._dispara_en
+
+    def audio_since_wake(self, margin_ms: float = 50.0) -> bytes | None:
+        self.replay_calls += 1
+        return self._recorte
 
     def flush(self) -> bool:
         return False
@@ -67,12 +76,15 @@ class _TranscriberFalso:
         self._texto = texto
         self._disponible = disponible
         self.last_text = ""
+        # Cada chunk que recibe, para poder verificar la inyección del replay.
+        self.recibidos: list[bytes] = []
 
     @property
     def available(self) -> bool:
         return self._disponible
 
     def accept(self, pcm: bytes) -> str | None:
+        self.recibidos.append(pcm)
         if not self._disponible:
             return None
         self.last_text = self._texto
@@ -81,6 +93,31 @@ class _TranscriberFalso:
     def flush(self) -> str:
         if not self._disponible:
             return ""
+        self.last_text = self._texto
+        return self._texto
+
+
+class _TranscriberGrabador:
+    """Transcriber que solo junta los chunks y recién devuelve texto en ``flush``.
+
+    Permite ver el flujo de audio completo (replay + vivo) sin que la primera
+    frase cierre la captura.
+    """
+
+    def __init__(self, texto: str = "hay piedras en la calzada") -> None:
+        self._texto = texto
+        self.last_text = ""
+        self.recibidos: list[bytes] = []
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    def accept(self, pcm: bytes) -> str | None:
+        self.recibidos.append(pcm)
+        return None
+
+    def flush(self) -> str:
         self.last_text = self._texto
         return self._texto
 
@@ -136,6 +173,9 @@ def _instalar_vosk_falso(monkeypatch: pytest.MonkeyPatch, texto: str) -> dict[st
             registros["rate"] = rate
             registros["grammar"] = grammar
 
+        def SetWords(self, enabled: bool) -> None:
+            registros["set_words"] = enabled
+
         def AcceptWaveform(self, data: bytes) -> bool:
             return True
 
@@ -176,7 +216,7 @@ def _correr_talk(
     tmp_path: Path,
     *,
     detector: _DetectorFalso | None = None,
-    transcriber: _TranscriberFalso | None = None,
+    transcriber: _TranscriberFalso | _TranscriberGrabador | None = None,
     chunks: list[bytes] | None = None,
     extra: list[str] | None = None,
 ) -> tuple[int, _TransporteFalso]:
@@ -333,10 +373,8 @@ def test_talk_pasa_el_modelo_del_detector_al_transcriber(
     assert capturado["model"] is detector.model
 
 
-def test_talk_construye_el_detector_con_deteccion_temprana(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """``_talk`` usa ``early=True``: la wake word dispara con el parcial."""
+def test_talk_ya_no_usa_deteccion_temprana(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """``_talk`` dejó de pasar ``early=True``: el replay reemplaza al parcial."""
 
     capturado: dict[str, object] = {}
 
@@ -351,7 +389,75 @@ def test_talk_construye_el_detector_con_deteccion_temprana(
 
     cli.main(["talk", "--wav", "dummy.wav", "--config", _config_sin_red(tmp_path)])
 
-    assert capturado["early"] is True
+    assert capturado.get("early", False) is False
+
+
+def test_talk_inyecta_el_recorte_una_sola_vez_y_sigue_sin_duplicar(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """El replay se inyecta completo una vez y el vivo continúa en el chunk siguiente.
+
+    Los chunks son distinguibles (A/B/C). El detector despierta en el segundo y
+    devuelve como recorte la cola del chunk que despertó (``b"B"*2``); el vivo
+    debe seguir con ``C``. No hay solapamiento (``B`` entero no se repite) ni
+    audio duplicado (``C`` aparece una sola vez).
+    """
+
+    detector = _DetectorFalso(dispara_en=2, recorte=b"B" * 2)
+    transcriber = _TranscriberGrabador()
+    codigo, _ = _correr_talk(
+        monkeypatch,
+        tmp_path,
+        detector=detector,
+        transcriber=transcriber,
+        chunks=[b"A" * 4, b"B" * 4, b"C" * 4],
+    )
+
+    assert codigo == 0
+    assert transcriber.recibidos == [b"B" * 2, b"C" * 4]
+    assert b"B" * 4 not in b"".join(transcriber.recibidos)
+
+
+def test_talk_llama_audio_since_wake_al_detectar(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    detector = _DetectorFalso(dispara_en=1)
+    _correr_talk(monkeypatch, tmp_path, detector=detector)
+
+    assert detector.replay_calls == 1
+
+
+def test_talk_sin_recorte_no_inyecta_bytes_vacios(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Fallback sin replay: el transcriber solo ve audio en vivo, nunca ``b""``."""
+
+    detector = _DetectorFalso(dispara_en=1, recorte=None)
+    transcriber = _TranscriberGrabador()
+    _correr_talk(
+        monkeypatch,
+        tmp_path,
+        detector=detector,
+        transcriber=transcriber,
+        chunks=[b"A" * 4, b"B" * 4],
+    )
+
+    assert b"" not in transcriber.recibidos
+    assert transcriber.recibidos == [b"B" * 4]
+
+
+def test_talk_loguea_los_samples_recuperados(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """El evento ``wake_word`` mide cuánto audio antes perdido se recuperó."""
+
+    detector = _DetectorFalso(dispara_en=1, recorte=b"X" * 400)
+    _correr_talk(monkeypatch, tmp_path, detector=detector)
+
+    salida = capsys.readouterr().err
+    assert "wake_word" in salida
+    assert "recovered_samples=200" in salida
+    assert "detect_to_send_ms=" in salida
 
 
 def test_talk_resetea_el_detector_al_volver_a_escuchar(
