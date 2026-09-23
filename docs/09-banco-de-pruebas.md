@@ -295,6 +295,12 @@ silencio (Vosk emite el resultado final al detectar la pausa), no por tiempo. Si
 la wake word se dispara sola y no sigue ninguna frase, el comando registra
 `talk.empty` y vuelve a escuchar sin enviar: un falso positivo no corta el nodo.
 
+`talk` detecta la wake word con **resultados parciales** (`early=True`): dispara
+apenas Vosk reconoce "atención comboy", sin esperar la pausa, para no perder el
+arranque de la frase encadenada. `listen` no usa este modo y sigue reaccionando
+solo al resultado final. Ver
+[04-audio-e-ia.md](04-audio-e-ia.md#detección-temprana-por-resultados-parciales).
+
 ## Advertencia: el PC no es la Pi
 
 El PC es x86 y bastante más rápido que la Pi 4. Correr el STT en el PC **no

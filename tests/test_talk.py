@@ -41,6 +41,7 @@ class _DetectorFalso:
         self._disponible = disponible
         self._dispara_en = dispara_en
         self.llamadas = 0
+        self.resets = 0
         self.last_text = "atencion convoy"
         self.model = object()
 
@@ -54,6 +55,9 @@ class _DetectorFalso:
 
     def flush(self) -> bool:
         return False
+
+    def reset(self) -> None:
+        self.resets += 1
 
 
 class _TranscriberFalso:
@@ -138,8 +142,14 @@ def _instalar_vosk_falso(monkeypatch: pytest.MonkeyPatch, texto: str) -> dict[st
         def Result(self) -> str:
             return json.dumps({"text": registros["texto"]})
 
+        def PartialResult(self) -> str:
+            return json.dumps({"text": ""})
+
         def FinalResult(self) -> str:
             return json.dumps({"text": registros["texto"]})
+
+        def Reset(self) -> None:
+            pass
 
     modulo = types.ModuleType("vosk")
     modulo.Model = _Modelo
@@ -321,6 +331,40 @@ def test_talk_pasa_el_modelo_del_detector_al_transcriber(
 
     assert codigo == 0
     assert capturado["model"] is detector.model
+
+
+def test_talk_construye_el_detector_con_deteccion_temprana(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``_talk`` usa ``early=True``: la wake word dispara con el parcial."""
+
+    capturado: dict[str, object] = {}
+
+    def _factory(*args: object, **kwargs: object) -> _DetectorFalso:
+        capturado.update(kwargs)
+        return _DetectorFalso(dispara_en=0)
+
+    monkeypatch.setattr(cli, "wav_chunks", lambda *args, **kwargs: iter([b"A"]))
+    monkeypatch.setattr(cli, "VoskWakeWord", _factory)
+    monkeypatch.setattr(cli, "create_transcriber", lambda *args, **kwargs: _TranscriberFalso(""))
+    monkeypatch.setattr(cli, "create_transport", lambda *args, **kwargs: _TransporteFalso())
+
+    cli.main(["talk", "--wav", "dummy.wav", "--config", _config_sin_red(tmp_path)])
+
+    assert capturado["early"] is True
+
+
+def test_talk_resetea_el_detector_al_volver_a_escuchar(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Tras procesar la frase se llama ``reset()`` para limpiar el parcial viejo."""
+
+    detector = _DetectorFalso(dispara_en=1)
+    codigo, transporte = _correr_talk(monkeypatch, tmp_path, detector=detector)
+
+    assert codigo == 0
+    assert len(transporte.enviadas) == 1
+    assert detector.resets >= 1
 
 
 def test_talk_sin_detector_ni_transcriber_disponibles_devuelve_2(

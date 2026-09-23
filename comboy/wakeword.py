@@ -29,9 +29,20 @@ nadie la "arregle" pensando que es un bug.
 Alcance de este módulo
 ----------------------
 
-Solo responde sí/no a la wake word. El VAD, la transcripción de la frase de
-peligro, el clasificador y el half-duplex son parte de la Fase 2 pero **no** de
-este slice.
+Responde sí/no a la wake word y nada más: la transcripción de la frase de
+peligro y el clasificador viven en :mod:`comboy.voice` y :mod:`comboy.classify`,
+y el comando ``talk`` los une. El VAD y el half-duplex siguen pendientes.
+
+Detección temprana por resultados parciales
+-------------------------------------------
+
+Vosk no reporta nada hasta que detecta silencio. Mientras el conductor sigue
+hablando después de "atencion comboy", el detector no dice nada y los chunks de
+la frase de peligro se descartan. Con ``early=True`` el detector mira también
+:meth:`~KaldiRecognizer.PartialResult`, que trae el texto provisorio **sin**
+esperar silencio: la wake word dispara apenas se pronuncia y la frase no pierde
+su arranque. :meth:`VoskWakeWord.accept` documenta el latch que evita disparos
+repetidos mientras el parcial siga conteniendo la frase.
 
 Si el modelo falta, el módulo registra un único WARN ``wakeword.unavailable`` y
 queda permanentemente no disponible: :meth:`VoskWakeWord.accept` siempre devuelve
@@ -40,6 +51,7 @@ queda permanentemente no disponible: :meth:`VoskWakeWord.accept` siempre devuelv
 
 from __future__ import annotations
 
+import contextlib
 import json
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
@@ -101,14 +113,31 @@ class VoskWakeWord:
         *,
         phrase: str = WAKE_PHRASE,
         rate: int = 16000,
+        early: bool = False,
         logger: Logger | None = None,
     ) -> None:
+        """Construye el detector.
+
+        ``early`` habilita la detección por resultados parciales. Existe porque
+        Vosk no reporta hasta el silencio: si el conductor encadena "atencion
+        comboy" con la frase de peligro, el final no llega hasta que termina y
+        los chunks intermedios se descartan. Con ``early=True`` la wake word
+        dispara apenas se pronuncia. El costo es que puede disparar un poco
+        antes, dejando un resto de "convoy" al principio de la frase capturada.
+        Por defecto queda apagado: ``listen`` no cambia de comportamiento.
+        """
+
         self._logger = logger
         self._grammar_phrase = to_grammar(phrase)
         self._rate = rate
+        self._early = early
         self._model: Any = None
         self._recognizer: Any = None
         self._last_text = ""
+        # Latch de disparo por parcial. Ver :meth:`accept`: evita que el texto
+        # parcial, que sigue conteniendo la frase mientras el conductor habla,
+        # dispare en cada chunk.
+        self._latched = False
 
         path = Path(model_path)
         if not path.is_dir():
@@ -138,7 +167,12 @@ class VoskWakeWord:
 
     @property
     def last_text(self) -> str:
-        """Último texto final reconocido (vacío si todavía no hubo ninguno)."""
+        """Último texto reconocido que se interpretó, final o parcial.
+
+        Vacío si todavía no hubo ninguno. Con ``early=True`` puede ser un texto
+        **parcial**: es el que efectivamente disparó la detección, útil para el
+        log. Ver :meth:`accept`.
+        """
 
         return self._last_text
 
@@ -159,31 +193,78 @@ class VoskWakeWord:
             self._logger.warn("wakeword.unavailable", **extra)
 
     def accept(self, pcm: bytes) -> bool:
-        """Procesa un fragmento de PCM y reporta si terminó una frase con la wake word.
+        """Procesa un fragmento de PCM y reporta si la wake word está presente.
 
-        Vosk emite un resultado final cuando detecta el fin de la frase; recién
-        ahí se compara el texto. Devuelve ``False`` ante cualquier error.
+        Vosk emite un resultado **final** cuando detecta el fin de la frase
+        (silencio); recién ahí se compara el texto, como siempre. Con
+        ``early=True`` también se interpretan los resultados **parciales** de
+        :meth:`~KaldiRecognizer.PartialResult`, que Vosk emite en streaming sin
+        esperar silencio: la wake word dispara apenas se pronuncia y no se
+        pierden los chunks donde el conductor ya arrancó la frase de peligro.
+
+        Latch de parciales
+        ------------------
+
+        El texto parcial sigue conteniendo "atencion convoy" en **todos** los
+        chunks mientras el conductor habla. Sin protección, ``accept`` devolvería
+        ``True`` en cada uno y se mandarían alertas duplicadas. Por eso, cuando
+        el disparo viene de un parcial se activa un latch que ignora los
+        parciales siguientes hasta que llegue un resultado final, que lo limpia.
+        El resultado neto es **una detección por utterance**. El final sí puede
+        volver a disparar: es el que cierra la frase y re-arma el latch.
+
+        Devuelve ``False`` ante cualquier error.
         """
 
         if self._recognizer is None:
             return False
         try:
-            if not self._recognizer.AcceptWaveform(pcm):
+            if self._recognizer.AcceptWaveform(pcm):
+                # Un final cierra la utterance: limpia el latch de parciales.
+                self._latched = False
+                return self._interpret(self._recognizer.Result())
+            if not self._early:
                 return False
-            return self._interpret(self._recognizer.Result())
+            if self._latched:
+                # Ya disparó un parcial de esta utterance; el parcial sigue
+                # conteniendo la frase, así que se ignora hasta el final.
+                return False
+            if self._interpret(self._recognizer.PartialResult()):
+                self._latched = True
+                return True
+            return False
         except Exception:
             return False
+
+    def reset(self) -> None:
+        """Reinicia el recognizer y el estado interno del detector.
+
+        Se usa al volver a la fase de wake word después de procesar una frase:
+        el texto parcial de la wake word anterior puede seguir vivo y
+        re-disparar de inmediato. Limpia el latch y :attr:`last_text`, y delega
+        en ``Reset()`` del recognizer. No lanza si el recognizer no está
+        disponible.
+        """
+
+        self._latched = False
+        self._last_text = ""
+        if self._recognizer is None:
+            return
+        with contextlib.suppress(Exception):
+            self._recognizer.Reset()
 
     def flush(self) -> bool:
         """Cierra la frase en curso y reporta si la wake word estaba en la cola.
 
         Necesario para fuentes finitas (por ejemplo un WAV) que terminan sin
-        silencio de cierre: sin esto, el último tramo nunca se emitiría.
+        silencio de cierre: sin esto, el último tramo nunca se emitiría. Como un
+        final, limpia el latch de parciales.
         """
 
         if self._recognizer is None:
             return False
         try:
+            self._latched = False
             return self._interpret(self._recognizer.FinalResult())
         except Exception:
             return False

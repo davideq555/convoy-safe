@@ -118,8 +118,14 @@ def _instalar_vosk_falso(monkeypatch: pytest.MonkeyPatch, texto: str) -> dict[st
         def Result(self) -> str:
             return json.dumps({"text": registros["texto"]})
 
+        def PartialResult(self) -> str:
+            return json.dumps({"text": ""})
+
         def FinalResult(self) -> str:
             return json.dumps({"text": registros["texto"]})
+
+        def Reset(self) -> None:
+            pass
 
     modulo = types.ModuleType("vosk")
     modulo.Model = _Modelo

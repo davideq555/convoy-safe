@@ -121,6 +121,38 @@ El conductor dice "comboy", el modelo transcribe "convoy" y la detección
 funciona. La equivalencia está explícita en el código, con un test que la
 protege para que nadie la "arregle" creyendo que es un typo.
 
+### Detección temprana por resultados parciales
+
+Vosk no reporta nada hasta que detecta **silencio**: el resultado final de una
+frase recién llega cuando el conductor calla. Eso es un problema para la wake
+word cuando el conductor **encadena** la activación con la frase de peligro:
+
+1. Dice "atención comboy" → Vosk ya lo tiene, pero no lo reporta (no hubo pausa).
+2. Sigue hablando ("hay piedras...") → esos chunks entran al detector, que
+   todavía espera el final, y **se descartan**.
+3. Calla → recién ahí dispara.
+4. La transcripción arranca en el chunk siguiente: todo lo del paso 2 se perdió.
+
+El síntoma en uso real es que la frase se corta al principio ("demora un poco y
+me da cortado"). La solución es leer también `PartialResult()`, el texto
+provisorio que Vosk emite **sin** esperar silencio, y disparar con él. El comando
+`talk` construye el detector con `early=True`; `listen` conserva el
+comportamiento clásico (`early=False`), que solo reacciona al final.
+
+**El costo** es que la detección puede llegar un poco antes de que la wake word
+termine de pronunciarse, dejando un resto de "convoy" al principio de la frase
+capturada. El clasificador es semántico y tolera ese ruido. Además, el chunk en
+vuelo (unos **125 ms** a 16 kHz) se sigue descartando, porque pertenece a la
+activación y no a la frase.
+
+Un detalle no obvio: el texto parcial sigue conteniendo "atención convoy" en
+**todos** los chunks mientras el conductor habla. Sin protección, el detector
+dispararía una vez por chunk y mandaría alertas duplicadas. Por eso hay un
+**latch**: un disparo por parcial silencia los parciales siguientes hasta que
+llega un resultado final, que lo limpia. El resultado es una detección por
+enunciado. Al volver a la fase de wake word, `talk` llama a `reset()` para que el
+parcial de la activación anterior no re-dispare.
+
 ### Riesgos propios del wake word
 
 - **El ruido de cabina degrada la detección.** Es lo primero a validar en un

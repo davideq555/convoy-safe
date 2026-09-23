@@ -592,6 +592,11 @@ def _talk(args: argparse.Namespace) -> int:
       que la wake word se disparó sola (un falso positivo). Se registra y se
       vuelve a escuchar en vez de abortar, porque este nodo corre siempre.
 
+    Además, el detector se construye con ``early=True``: la wake word dispara
+    con el resultado parcial, apenas se pronuncia, para no perder el arranque de
+    la frase que el conductor encadena. Al terminar cada frase se llama
+    ``detector.reset()`` para que ese parcial no re-dispare.
+
     No hay gate de confianza: si la clasificación da ``DESCONOCIDO`` se envía
     igual, por decisión del dueño.
 
@@ -633,7 +638,15 @@ def _talk(args: argparse.Namespace) -> int:
         # El detector carga el modelo una sola vez y el transcriber lo reutiliza:
         # un segundo modelo costaría segundos de latencia al despertar y el doble
         # de RAM. Por eso el detector se construye primero.
-        detector = VoskWakeWord(DEFAULT_MODEL_PATH, phrase=config.audio.wake_word, logger=logger)
+        # ``early=True``: la wake word dispara con el resultado parcial, apenas se
+        # pronuncia, en vez de esperar al silencio. Sin esto, la frase de peligro
+        # que sigue encadenada pierde su arranque. ``listen`` no lo usa.
+        detector = VoskWakeWord(
+            DEFAULT_MODEL_PATH,
+            phrase=config.audio.wake_word,
+            early=True,
+            logger=logger,
+        )
         transcriber = create_transcriber(DEFAULT_MODEL_PATH, logger=logger, model=detector.model)
         if not detector.available or not transcriber.available:
             print(
@@ -685,6 +698,12 @@ def _talk(args: argparse.Namespace) -> int:
                 # de cierre: se cierra la frase en curso para no perder el tramo.
                 if not texto:
                     texto = transcriber.flush()
+
+                # Vuelve a la fase de wake word: se limpia el recognizer del
+                # detector. Sin esto, el parcial de la wake word que ya disparó
+                # (y que sigue vivo hasta un final) re-dispararía con el primer
+                # chunk de la próxima frase.
+                detector.reset()
 
                 if not texto.strip():
                     # Wake word sola: no es un error, se vuelve a escuchar.
