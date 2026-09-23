@@ -295,11 +295,42 @@ silencio (Vosk emite el resultado final al detectar la pausa), no por tiempo. Si
 la wake word se dispara sola y no sigue ninguna frase, el comando registra
 `talk.empty` y vuelve a escuchar sin enviar: un falso positivo no corta el nodo.
 
-`talk` detecta la wake word con **resultados parciales** (`early=True`): dispara
-apenas Vosk reconoce "atención comboy", sin esperar la pausa, para no perder el
-arranque de la frase encadenada. `listen` no usa este modo y sigue reaccionando
-solo al resultado final. Ver
-[04-audio-e-ia.md](04-audio-e-ia.md#detección-temprana-por-resultados-parciales).
+`talk` recupera el audio posterior a la wake word con el **buffer rodante** del
+detector: Vosk entrega el `end` de la última palabra con `SetWords(True)`, el
+detector traduce ese tiempo a un sample del buffer y `audio_since_wake()` devuelve
+el tramo para inyectar al transcriber. No usa detección temprana por parciales
+(`early` queda en `False`); `listen` tampoco la usa. Ver
+[04-audio-e-ia.md](04-audio-e-ia.md#recuperación-del-audio-posterior-a-la-wake-word-buffer-rodante).
+
+### Verificar el replay sin micrófono
+
+El mecanismo se prueba a nivel unitario, sin micrófono ni audio real: los tests de
+`tests/test_wakeword.py` alimentan chunks con bytes distinguibles y verifican que
+`audio_since_wake()` devuelva exactamente el tramo posterior a `wake_end` (menos
+el margen de seguridad), que el buffer esté acotado, y que el fallback devuelva
+`None` sin lanzar. Los tests de `tests/test_talk.py` verifican que `talk` inyecte
+ese recorte una sola vez al transcriber y siga en vivo sin solapamiento.
+
+**Regresión del desfase de orígenes.** El test
+`test_segunda_deteccion_tras_reset_tambien_recupera_audio` reproduce el camino de
+`talk` con **dos** detecciones y un `reset()` en el medio: la segunda también
+tiene que recuperar audio. Falla con el código que vaciaba el buffer y el
+contador en `reset()`, porque a partir de la segunda detección los orígenes de
+Vosk y del buffer quedaban desfasados y el recorte caía fuera del buffer. El
+guard `wakeword.invariant_broken` (ver
+[06-codigos-y-logs.md](06-codigos-y-logs.md)) es el que habría delatado el bug en
+la primera corrida.
+
+Con audio real, el paso es el mismo WAV de arriba:
+
+```bash
+python -m comboy talk --wav frase-con-wakeword.wav --no-send
+```
+
+En el log, el evento `wake_word` trae `recovered_samples=` (las muestras
+recuperadas) y `detect_to_send_ms=`. Si `recovered_samples` es grande, el
+"cortado" era pérdida de audio y el replay lo resuelve; si es ~0, era latencia
+percibida. El dueño es quien puede grabar ese WAV y leer el número.
 
 ## Advertencia: el PC no es la Pi
 

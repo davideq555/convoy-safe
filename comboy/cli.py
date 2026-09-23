@@ -575,6 +575,38 @@ def _voice(args: argparse.Namespace) -> int:
         logger.close()
 
 
+def _log_wake_word(
+    logger: Logger,
+    *,
+    phrase: str,
+    text: str,
+    source: str,
+    recovered_samples: int,
+    detectado_en: float,
+) -> None:
+    """Registra ``wake_word`` con la instrumentación del replay.
+
+    ``recovered_samples`` son las muestras de audio que se recuperaron del buffer
+    rodante: exactamente las que la detección tardía habría descartado. Es la
+    métrica que decide el diagnóstico del "cortado": si es grande, el problema
+    era pérdida de audio y el replay lo ataca; si es ~0, era latencia percibida
+    y este arreglo no la cambia.
+
+    ``detect_to_send_ms`` mide el tiempo total desde que el detector despertó
+    hasta que la alerta salió. Con ``--no-send`` (o cuando la wake word vino
+    sola) no hay envío: en esos casos mide hasta la decisión, no hasta el aire.
+    """
+
+    logger.info(
+        "wake_word",
+        phrase=phrase,
+        text=text,
+        source=source,
+        recovered_samples=recovered_samples,
+        detect_to_send_ms=round((time.monotonic() - detectado_en) * 1000),
+    )
+
+
 def _talk(args: argparse.Namespace) -> int:
     """Detecta la wake word, transcribe la frase libre y envía la alerta clasificada.
 
@@ -585,17 +617,22 @@ def _talk(args: argparse.Namespace) -> int:
 
     Dos decisiones no obvias:
 
-    * El fragmento que despierta al detector **no** se le pasa al transcriber:
-      contiene la wake word y re-decodificarlo ensuciaría la frase. La frase
-      empieza en el fragmento siguiente.
+    * El fragmento que despierta al detector **no** se re-decoda: contiene la
+      wake word y pasarlo entero ensuciaría la frase. Pero el detector buffea el
+      PCM y ``audio_since_wake()`` devuelve el tramo **posterior** al fin de la
+      wake word, que se inyecta al transcriber de una sola vez. Después se sigue
+      alimentando en vivo desde el chunk siguiente, sin solapar ni duplicar.
     * Una frase vacía **no** es un error, a diferencia de ``voice``: significa
       que la wake word se disparó sola (un falso positivo). Se registra y se
       vuelve a escuchar en vez de abortar, porque este nodo corre siempre.
 
-    Además, el detector se construye con ``early=True``: la wake word dispara
-    con el resultado parcial, apenas se pronuncia, para no perder el arranque de
-    la frase que el conductor encadena. Al terminar cada frase se llama
-    ``detector.reset()`` para que ese parcial no re-dispare.
+    El detector se construye con ``early`` en su default (``False``): la
+    detección temprana por parciales no alcanzó para no perder el arranque de la
+    frase y arriesgaba falsos positivos. Al terminar cada frase se llama
+    ``detector.reset()`` para limpiar el estado de disparo (latch, ``last_text``
+    y ``wake_end``). El buffer y el contador de samples **no** se tocan: son
+    monotónicos durante toda la vida del detector, igual que el origen de
+    timestamps de Vosk. Ver el invariante en ``wakeword.reset``.
 
     No hay gate de confianza: si la clasificación da ``DESCONOCIDO`` se envía
     igual, por decisión del dueño.
@@ -638,13 +675,13 @@ def _talk(args: argparse.Namespace) -> int:
         # El detector carga el modelo una sola vez y el transcriber lo reutiliza:
         # un segundo modelo costaría segundos de latencia al despertar y el doble
         # de RAM. Por eso el detector se construye primero.
-        # ``early=True``: la wake word dispara con el resultado parcial, apenas se
-        # pronuncia, en vez de esperar al silencio. Sin esto, la frase de peligro
-        # que sigue encadenada pierde su arranque. ``listen`` no lo usa.
+        # ``early`` queda en su default (``False``): la detección temprana por
+        # parciales no alcanzó para no perder el arranque de la frase y además
+        # arriesgaba falsos positivos. En su lugar, el detector buffea el PCM y
+        # ``audio_since_wake`` recupera el audio posterior a la wake word.
         detector = VoskWakeWord(
             DEFAULT_MODEL_PATH,
             phrase=config.audio.wake_word,
-            early=True,
             logger=logger,
         )
         transcriber = create_transcriber(DEFAULT_MODEL_PATH, logger=logger, model=detector.model)
@@ -673,40 +710,63 @@ def _talk(args: argparse.Namespace) -> int:
                     # La fuente se agotó (WAV) sin wake word: salida limpia.
                     break
 
-                logger.info(
-                    "wake_word",
-                    phrase=config.audio.wake_word,
-                    text=detector.last_text,
-                    source=source,
-                )
+                # Instante de la detección: con él se mide la reacción completa.
+                # El texto se captura ya porque ``reset`` lo limpia más abajo.
+                detectado_en = time.monotonic()
+                wake_text = detector.last_text
+
+                # Recupera el audio que la detección tardía habría descartado.
+                # El recorte termina donde termina el buffer, así que los chunks
+                # que siguen se procesan en vivo sin solaparse ni duplicarse.
+                recorte = detector.audio_since_wake()
+                recovered_samples = len(recorte) // 2 if recorte else 0
 
                 # Fase frase: el fragmento que despertó no se re-decoda. El
-                # tope ``--seconds`` es de seguridad; la frase normalmente cierra
-                # por silencio, cuando Vosk emite un resultado final.
+                # recorte recuperado se inyecta de una sola vez; después se sigue
+                # alimentando en vivo desde el chunk siguiente. El tope
+                # ``--seconds`` es de seguridad; la frase normalmente cierra por
+                # silencio, cuando Vosk emite un resultado final.
                 texto = ""
-                samples = 0
+                # ``samples`` cuenta bytes, igual que en ``voice`` (el nombre es
+                # histórico); ``recovered_samples`` cuenta muestras.
+                samples = len(recorte) if recorte else 0
                 deadline = time.monotonic() + args.seconds
-                for chunk in iterador:
-                    samples += len(chunk)
-                    reconocido = transcriber.accept(chunk)
+                if recorte:
+                    reconocido = transcriber.accept(recorte)
                     if reconocido:
                         texto = reconocido
-                        break
-                    if time.monotonic() >= deadline:
-                        break
+                if not texto:
+                    for chunk in iterador:
+                        samples += len(chunk)
+                        reconocido = transcriber.accept(chunk)
+                        if reconocido:
+                            texto = reconocido
+                            break
+                        if time.monotonic() >= deadline:
+                            break
                 # Una fuente finita (WAV) o un corte pueden terminar sin silencio
                 # de cierre: se cierra la frase en curso para no perder el tramo.
                 if not texto:
                     texto = transcriber.flush()
 
-                # Vuelve a la fase de wake word: se limpia el recognizer del
-                # detector. Sin esto, el parcial de la wake word que ya disparó
-                # (y que sigue vivo hasta un final) re-dispararía con el primer
-                # chunk de la próxima frase.
+                # Vuelve a la fase de wake word: se limpia el estado de disparo
+                # del detector (latch, last_text y wake_end). Sin esto, el
+                # parcial de la wake word que ya disparó (y que sigue vivo hasta
+                # un final) re-dispararía con el primer chunk de la próxima frase.
+                # El buffer y el contador NO se tocan: son monotónicos, como el
+                # origen de timestamps de Vosk (Reset() no reinicia sus frames).
                 detector.reset()
 
                 if not texto.strip():
                     # Wake word sola: no es un error, se vuelve a escuchar.
+                    _log_wake_word(
+                        logger,
+                        phrase=config.audio.wake_word,
+                        text=wake_text,
+                        source=source,
+                        recovered_samples=recovered_samples,
+                        detectado_en=detectado_en,
+                    )
                     logger.info("talk.empty", source=source)
                     continue
 
@@ -716,6 +776,19 @@ def _talk(args: argparse.Namespace) -> int:
                 frame = _build_classified_frame(result, args, config, origin_id)
                 if not args.no_send:
                     node.send_alert(frame)
+
+                # Se registra recién acá para poder incluir la latencia total
+                # detección -> envío. ``recovered_samples`` es la métrica que
+                # decide el diagnóstico: si es grande, el "cortado" era pérdida
+                # de audio y este replay lo resuelve; si es ~0, era latencia.
+                _log_wake_word(
+                    logger,
+                    phrase=config.audio.wake_word,
+                    text=wake_text,
+                    source=source,
+                    recovered_samples=recovered_samples,
+                    detectado_en=detectado_en,
+                )
 
                 _print_voice_result(texto, result, no_send=args.no_send, as_json=args.json)
                 # Vuelve a la fase de wake word: el nodo sigue escuchando.

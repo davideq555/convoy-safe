@@ -121,7 +121,7 @@ El conductor dice "comboy", el modelo transcribe "convoy" y la detección
 funciona. La equivalencia está explícita en el código, con un test que la
 protege para que nadie la "arregle" creyendo que es un typo.
 
-### Detección temprana por resultados parciales
+### Recuperación del audio posterior a la wake word (buffer rodante)
 
 Vosk no reporta nada hasta que detecta **silencio**: el resultado final de una
 frase recién llega cuando el conductor calla. Eso es un problema para la wake
@@ -134,24 +134,112 @@ word cuando el conductor **encadena** la activación con la frase de peligro:
 4. La transcripción arranca en el chunk siguiente: todo lo del paso 2 se perdió.
 
 El síntoma en uso real es que la frase se corta al principio ("demora un poco y
-me da cortado"). La solución es leer también `PartialResult()`, el texto
-provisorio que Vosk emite **sin** esperar silencio, y disparar con él. El comando
-`talk` construye el detector con `early=True`; `listen` conserva el
-comportamiento clásico (`early=False`), que solo reacciona al final.
+me da cortado").
 
-**El costo** es que la detección puede llegar un poco antes de que la wake word
-termine de pronunciarse, dejando un resto de "convoy" al principio de la frase
-capturada. El clasificador es semántico y tolera ese ruido. Además, el chunk en
-vuelo (unos **125 ms** a 16 kHz) se sigue descartando, porque pertenece a la
-activación y no a la frase.
+#### Por qué la detección temprana no alcanzó
 
-Un detalle no obvio: el texto parcial sigue conteniendo "atención convoy" en
-**todos** los chunks mientras el conductor habla. Sin protección, el detector
-dispararía una vez por chunk y mandaría alertas duplicadas. Por eso hay un
-**latch**: un disparo por parcial silencia los parciales siguientes hasta que
-llega un resultado final, que lo limpia. El resultado es una detección por
-enunciado. Al volver a la fase de wake word, `talk` llama a `reset()` para que el
-parcial de la activación anterior no re-dispare.
+El primer intento fue leer también `PartialResult()`, el texto provisorio que Vosk
+emite sin esperar silencio, y disparar con él (`early=True`). **No funcionó**: Vosk
+emite el parcial con retraso, una vez que ya procesó audio que incluye el arranque
+de la frase. El disparo sigue llegando tarde y ese arranque se pierde igual.
+Además, disparar sobre un parcial arriesga falsos positivos, porque el texto
+provisorio es inestable.
+
+El flag `early` sigue existiendo con default `False`, pero `talk` **ya no lo usa**:
+`listen` conserva el comportamiento clásico.
+
+#### El mecanismo: guardar y recuperar
+
+En vez de depender de *cuándo* dispara la detección, se guarda el audio y se lo
+recupera:
+
+1. El detector mantiene un **buffer rodante de PCM** de 30 segundos (~960 KB a
+   16 kHz mono s16). Cada chunk se agrega al buffer **antes** de pasarlo a Vosk,
+   así el audio en vuelo ya está disponible cuando la detección dispara.
+2. El recognizer del wake word se construye con `SetWords(True)`. Así `Result()`
+   devuelve, además del texto, un array `result` con los tiempos por palabra **en
+   segundos**: el `end` de la última palabra es dónde terminó "atención comboy".
+3. Ese `end` se traduce a un **sample absoluto** (`end * rate`) dentro del buffer.
+   El detector expone `audio_since_wake()`, que devuelve el PCM desde ese punto
+   hasta el final del buffer.
+4. `talk` inyecta ese recorte al transcriber de una sola vez y después sigue
+   alimentando en vivo desde el chunk siguiente.
+
+Como el recorte termina exactamente donde termina el buffer, y el vivo continúa
+desde ahí, **no hay solapamiento ni audio duplicado**. Y ninguna muestra hablada
+después de la activación se pierde, sin importar cuántos chunks haya tardado la
+detección.
+
+#### El invariante: un solo origen temporal
+
+Los timestamps de Vosk y el contador de samples del buffer tienen que arrancar
+del **mismo origen**: el inicio del stream del recognizer. Por eso el buffer vive
+**dentro** de `comboy/wakeword.py`: el detector es el único que conoce ambos.
+
+La parte no obvia —y la razón de ser de la corrección que sigue— es que **ese
+origen nunca se reinicia**:
+
+- `Reset()` de Vosk limpia el estado de decodificación, pero **no reinicia su
+  contador de frames**: los `end` de los resultados posteriores siguen siendo
+  absolutos desde el inicio del stream.
+- Por eso `reset()` del detector **no** debe vaciar el buffer ni volver
+  `total_samples_fed` a cero. Ambos tienen que ser **monotónicos durante toda la
+  vida del detector**, igual que el contador de Vosk.
+
+A primera vista "reset debería limpiar todo" parece lo correcto, y de hecho fue
+lo que se implementó primero. **Era el bug**: a partir de la **segunda**
+detección, `wake_end` (absoluto, grande) quedaba por delante de
+`total_samples_fed` (reiniciado, chico), el recorte caía fuera del buffer y
+`audio_since_wake()` devolvía `None` para siempre. La primera detección andaba
+perfecto; todas las siguientes daban `recovered_samples=0`. El buffer no crece
+sin control por no vaciarse: está acotado a 30 s y descarta lo más viejo.
+
+`reset()` sí limpia el latch, `last_text` y `_wake_end_sample`, y sigue llamando
+a `Reset()` del recognizer: lo que no toca es el buffer ni el contador.
+
+#### Guard: el invariante roto no es un fallback
+
+Si `wake_end_sample > total_samples_fed`, los dos orígenes se separaron: es
+imposible que el fin de la wake word esté más allá de todo lo alimentado. Ese
+caso **no** es un fallback normal (falta de dato): es un **bug de sincronía**.
+El detector registra un evento propio, `wakeword.invariant_broken`, con los dos
+valores como evidencia, y devuelve `None`. Con este guard, el bug de arriba
+habría sido obvio en la primera corrida en vez de costar dos hipótesis falsas.
+Ver [06-codigos-y-logs.md](06-codigos-y-logs.md).
+
+#### Riesgo residual: `flush()` y `FinalResult()`
+
+`talk` **no** llama `detector.flush()`, así que `FinalResult()` no se invoca en
+ese camino. Queda anotado como riesgo conocido que si en el futuro algo invocara
+`flush()`/`FinalResult()` sobre el detector de wake word, habría que **verificar**
+si eso sí reinicia el contador de frames de Vosk —no está medido—. Si lo hiciera,
+el mismo desfase reaparecería por otra puerta.
+
+#### Margen de seguridad
+
+`audio_since_wake()` recorta **50 ms antes** del `end` de la wake word. Los
+tiempos de Vosk vienen del alineamiento acústico y pueden errar unas decenas de
+milisegundos: incluir un poco de silencio o la cola de "convoy" no le molesta al
+clasificador, pero cortar el arranque de una sílaba de la frase sí. El margen es
+configurable; el default es 50 ms.
+
+#### Fallback: nunca lanza
+
+Si el resultado que disparó no traía array `result` (sin timestamp), o si la wake
+word quedó más atrás que los 30 segundos del buffer, `audio_since_wake()` devuelve
+`None` y registra `wakeword.replay_fallback` con el motivo. El llamador cae al
+comportamiento de siempre: empezar en el chunk siguiente. **No es un error**, es
+la degradación segura cuando el dato no está.
+
+#### Instrumentación
+
+`talk` registra el evento `wake_word` con `recovered_samples` (las muestras que
+se recuperaron del buffer, o sea las que antes se perdían) y `detect_to_send_ms`
+(el tiempo total desde la detección hasta el envío). `recovered_samples` decide el
+diagnóstico del "cortado": si es grande, el problema era **pérdida de audio** y
+este replay lo ataca; si es ~0, era **latencia percibida** y el replay no la
+cambia. Ver [06-codigos-y-logs.md](06-codigos-y-logs.md).
+
 
 ### Riesgos propios del wake word
 
