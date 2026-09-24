@@ -1,13 +1,13 @@
 """Arnés de medición de la calidad del clasificador sobre frases reservadas.
 
 Este instrumento responde **cuánto** acierta el clasificador, no *sí/no*. La
-validación funcional (nivel L1, ``python -m comboy text``) clasifica una frase y
+validación funcional (nivel L1, ``python -m convoy text``) clasifica una frase y
 pasa o falla; la medición clasifica **todas** las frases reservadas de
 ``datos/medicion.json`` y devuelve un porcentaje y un puñado de conteos.
 
 Vive en ``tools/`` y no en ``tests/`` a propósito:
 
-* ``tests/conftest.py`` borra las variables ``COMBOY_*`` en cada test, así que
+* ``tests/conftest.py`` borra las variables ``CONVOY_*`` en cada test, así que
   un arnés dentro de la suite no podría configurarse por entorno;
 * ``pyproject.toml`` agrega ``-q`` a pytest, que silenciaría justamente el
   reporte que este instrumento produce.
@@ -41,19 +41,19 @@ from pathlib import Path
 from typing import Any
 
 # Al correr ``python tools/medir_clasificador.py``, ``sys.path[0]`` es ``tools/``
-# y no la raíz del repositorio, así que ``comboy`` no sería importable. Se agrega
+# y no la raíz del repositorio, así que ``convoy`` no sería importable. Se agrega
 # la raíz antes de importar el paquete. Los imports de abajo llevan E402 (import
 # fuera del encabezado) a propósito, por este ajuste.
 _RAIZ_DEL_REPOSITORIO = Path(__file__).resolve().parent.parent
 if str(_RAIZ_DEL_REPOSITORIO) not in sys.path:
     sys.path.insert(0, str(_RAIZ_DEL_REPOSITORIO))
 
-from comboy.classify import Classification, classify
-from comboy.codes import Confidence, Hazard
-from comboy.config import EmbeddingConfig, load_config
-from comboy.datos import DatosInvalidos, Medicion, cargar_medicion
-from comboy.embedding import EmbeddingClient, EmbeddingUnavailable, create_embedding_client
-from comboy.logging_setup import Logger
+from convoy.classify import Classification, classify
+from convoy.codes import Confidence, Hazard
+from convoy.config import EmbeddingConfig, load_config
+from convoy.datos import DatosInvalidos, Medicion, cargar_medicion
+from convoy.embedding import EmbeddingClient, EmbeddingUnavailable, create_embedding_client
+from convoy.logging_setup import Logger
 
 #: Ancho con el que se alinea la etiqueta de cada línea de detalle.
 ANCHO_ETIQUETA = 14

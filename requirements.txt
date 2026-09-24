@@ -1,4 +1,4 @@
-# Dependencias de comboy-safe: runtime + herramientas de desarrollo.
+# Dependencias de convoy-safe: runtime + herramientas de desarrollo.
 # Mantené esta lista mínima: el diseño prohíbe dependencias de más.
 #
 # Solo van las dependencias DIRECTAS. Las transitivas —las que pip instala solo,

@@ -91,7 +91,7 @@ mic ──▶ wake word ──▶ VAD ──▶ STT ──▶ clasificador ─�
 
 El conductor que reporta recibe una confirmación local corta ("Alerta enviada")
 para saber que el sistema lo entendió. Esto es importante: sin esa confirmación,
-el conductor no puede distinguir entre "el comboy fue advertido" y "no pasó
+el conductor no puede distinguir entre "el convoy fue advertido" y "no pasó
 nada".
 
 ### Entrada (llega la alerta de otro nodo)
@@ -309,9 +309,9 @@ Cada nodo lee un único archivo de configuración al arrancar:
 
 ```yaml
 node:
-  id: 3                    # único dentro del comboy, 1..255
+  id: 3                    # único dentro del convoy, 1..255
   role: follower           # leader | follower
-  priority_order: 3        # posición en el comboy; menor significa más cerca del líder
+  priority_order: 3        # posición en el convoy; menor significa más cerca del líder
 
 transport:
   kind: udp                # udp | lora
@@ -338,7 +338,7 @@ audio:
   half_duplex: true
 
 log:
-  path: "/var/log/comboy-safe/events.log"
+  path: "/var/log/convoy-safe/events.log"
   level: info
 ```
 

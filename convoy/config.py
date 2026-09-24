@@ -28,29 +28,29 @@ VALID_EMBEDDING_KINDS = ("ollama", "null")
 
 #: Ruta por defecto del caché del índice de embeddings, relativa al directorio
 #: de trabajo. Ver :class:`EmbeddingConfig`.
-DEFAULT_EMBEDDING_CACHE_PATH = ".comboy-embeddings.json"
+DEFAULT_EMBEDDING_CACHE_PATH = ".convoy-embeddings.json"
 
 #: Variables de entorno que sobrescriben la config, y la ruta que pisan dentro
 #: del YAML. Son la forma de diferenciar nodos que comparten un mismo archivo.
 ENV_VARS: dict[str, tuple[str, ...]] = {
-    "COMBOY_NODE_ID": ("node", "id"),
-    "COMBOY_NODE_ROLE": ("node", "role"),
-    "COMBOY_TRANSPORT": ("transport", "kind"),
-    "COMBOY_UDP_BIND": ("transport", "udp", "bind"),
-    "COMBOY_UDP_PEERS": ("transport", "udp", "peers"),
-    "COMBOY_LOG_LEVEL": ("log", "level"),
-    "COMBOY_EMBEDDING_KIND": ("embedding", "kind"),
-    "COMBOY_EMBEDDING_URL": ("embedding", "url"),
-    "COMBOY_EMBEDDING_MODEL": ("embedding", "model"),
-    "COMBOY_EMBEDDING_TIMEOUT": ("embedding", "timeout_s"),
-    "COMBOY_EMBEDDING_CACHE": ("embedding", "cache_path"),
+    "CONVOY_NODE_ID": ("node", "id"),
+    "CONVOY_NODE_ROLE": ("node", "role"),
+    "CONVOY_TRANSPORT": ("transport", "kind"),
+    "CONVOY_UDP_BIND": ("transport", "udp", "bind"),
+    "CONVOY_UDP_PEERS": ("transport", "udp", "peers"),
+    "CONVOY_LOG_LEVEL": ("log", "level"),
+    "CONVOY_EMBEDDING_KIND": ("embedding", "kind"),
+    "CONVOY_EMBEDDING_URL": ("embedding", "url"),
+    "CONVOY_EMBEDDING_MODEL": ("embedding", "model"),
+    "CONVOY_EMBEDDING_TIMEOUT": ("embedding", "timeout_s"),
+    "CONVOY_EMBEDDING_CACHE": ("embedding", "cache_path"),
 }
 
 #: Variables de :data:`ENV_VARS` donde un valor vacío es significativo. En el
 #: resto, una variable presente pero vacía se ignora para no pisar el YAML por
 #: accidente (ver :func:`apply_env_overrides`). El caché de embeddings usa el
 #: vacío como "deshabilitado", así que ahí sí debe llegar al cargador.
-ENV_VARS_ALLOW_EMPTY = frozenset({"COMBOY_EMBEDDING_CACHE"})
+ENV_VARS_ALLOW_EMPTY = frozenset({"CONVOY_EMBEDDING_CACHE"})
 
 
 @dataclass(frozen=True)
@@ -124,13 +124,13 @@ class EmbeddingConfig:
     ``kind`` elige el cliente: ``"ollama"`` para el servicio local en
     ``url``/``model``, ``"null"`` para un cliente determinista sin red.
     ``min_similarity`` y ``min_margin`` son los umbrales que exige la confianza
-    ``ALTA`` (ver :mod:`comboy.classify`). ``timeout_s`` es la espera máxima por
+    ``ALTA`` (ver :mod:`convoy.classify`). ``timeout_s`` es la espera máxima por
     petición HTTP y ``batch_size`` acota cuántas frases viajan en cada una: el
     índice de referencia se construye en lotes, así que su tiempo no crece con
     el corpus.
 
     ``cache_path`` es el archivo donde se persiste el índice de referencia entre
-    procesos (ver :mod:`comboy.classify`). Un valor vacío **deshabilita** el
+    procesos (ver :mod:`convoy.classify`). Un valor vacío **deshabilita** el
     caché en disco: el índice se reconstruye siempre.
     """
 
@@ -263,17 +263,17 @@ def _load_embedding(section: dict[str, Any]) -> EmbeddingConfig:
 def _env_value(name: str, raw: str) -> Any:
     """Convierte el texto de una variable de entorno al tipo que espera el YAML."""
 
-    if name == "COMBOY_NODE_ID":
+    if name == "CONVOY_NODE_ID":
         try:
             return int(raw)
         except ValueError as exc:
             raise ValueError(f"{name} debe ser un entero, se obtuvo {raw!r}") from exc
-    if name == "COMBOY_EMBEDDING_TIMEOUT":
+    if name == "CONVOY_EMBEDDING_TIMEOUT":
         try:
             return float(raw)
         except ValueError as exc:
             raise ValueError(f"{name} debe ser un número, se obtuvo {raw!r}") from exc
-    if name == "COMBOY_UDP_PEERS":
+    if name == "CONVOY_UDP_PEERS":
         return [peer.strip() for peer in raw.split(",") if peer.strip()]
     return raw
 
@@ -281,7 +281,7 @@ def _env_value(name: str, raw: str) -> Any:
 def env_file_path() -> Path:
     """Ruta del ``.env`` a leer.
 
-    Es :data:`~comboy.envfile.ENV_FILE_VAR` si está definida, y si no ``.env``
+    Es :data:`~convoy.envfile.ENV_FILE_VAR` si está definida, y si no ``.env``
     en el directorio de trabajo.
     """
 
@@ -305,9 +305,9 @@ def apply_env_overrides(data: dict[str, Any] | None) -> dict[str, Any]:
     """Devuelve una copia de ``data`` con las variables de :data:`ENV_VARS` aplicadas.
 
     El entorno gana sobre el archivo. Una variable presente pero vacía se
-    ignora: así ``COMBOY_UDP_PEERS=`` no borra la lista del YAML por accidente.
+    ignora: así ``CONVOY_UDP_PEERS=`` no borra la lista del YAML por accidente.
     La excepción son las de :data:`ENV_VARS_ALLOW_EMPTY`, donde el vacío es un
-    valor válido (``COMBOY_EMBEDDING_CACHE=`` deshabilita el caché en disco).
+    valor válido (``CONVOY_EMBEDDING_CACHE=`` deshabilita el caché en disco).
     """
 
     env = effective_env()

@@ -174,7 +174,7 @@ detección.
 
 Los timestamps de Vosk y el contador de samples del buffer tienen que arrancar
 del **mismo origen**: el inicio del stream del recognizer. Por eso el buffer vive
-**dentro** de `comboy/wakeword.py`: el detector es el único que conoce ambos.
+**dentro** de `convoy/wakeword.py`: el detector es el único que conoce ambos.
 
 La parte no obvia —y la razón de ser de la corrección que sigue— es que **ese
 origen nunca se reinicia**:
@@ -351,9 +351,9 @@ el acierto —`qwen3-embedding:0.6b` y `bge-m3` empatan— sino que el único er
 responde `DESCONOCIDO` con confianza baja en vez de un código incorrecto con
 confianza alta. Eso es exactamente el invariante que no se negocia.
 
-El cliente de embeddings vive en `comboy/embedding.py`. Hay un cliente
+El cliente de embeddings vive en `convoy/embedding.py`. Hay un cliente
 `kind: null` determinista para depurar sin red, y el comando
-`python -m comboy text "..."` permite probar el clasificador sin micrófono.
+`python -m convoy text "..."` permite probar el clasificador sin micrófono.
 
 ### Extracción de campos por reglas
 
@@ -374,7 +374,7 @@ El sistema **nunca** deriva la urgencia del tipo de peligro. Una crecida de río
 es `DETENERSE` por ser una crecida: lo es solo si el conductor dijo "frená" o
 "detenete".
 
-La razón es que **la decisión es del conductor, no del sistema**. El comboy tiene
+La razón es que **la decisión es del conductor, no del sistema**. El convoy tiene
 un líder humano; el sistema transporta y anuncia la advertencia, pero no la
 gradúa. Un mapa de peligro a urgencia codificaría el criterio de un ingeniero
 sobre una situación que solo quien va adelante puede juzgar: el mismo derrumbe
@@ -392,8 +392,8 @@ Agregar una frase es agregar cobertura, sin reentrenar nada.
 Los datos no son código: el corpus completo (4 a 6 frases por código) está en
 `datos/corpus.json` y las frases reservadas para medir están en
 `datos/medicion.json`, incluido el conjunto de control de frases que **no** son
-peligro. Para no tocar el archivo versionado, `COMBOY_CORPUS_PATH` y
-`COMBOY_MEDICION_PATH` apuntan a un archivo extra cuyas frases se fusionan sobre
+peligro. Para no tocar el archivo versionado, `CONVOY_CORPUS_PATH` y
+`CONVOY_MEDICION_PATH` apuntan a un archivo extra cuyas frases se fusionan sobre
 la base. Las frases se normalizan antes de embeber, así que las tildes o los
 números en dígitos no cambian el resultado.
 
@@ -535,7 +535,7 @@ obligatorio (D4).
 | Alerta activa, urgencia INFO | Ámbar fijo | Peligro informado, sin urgencia inmediata |
 | Alerta activa, urgencia PRECAUCIÓN | Ámbar, parpadeo lento | Prestar atención |
 | Alerta activa, urgencia DETENERSE | Rojo, parpadeo rápido | Detenerse |
-| Nodo del comboy ausente | Azul, parpadeo lento | Un vehículo dejó de responder |
+| Nodo del convoy ausente | Azul, parpadeo lento | Un vehículo dejó de responder |
 | Falla del sistema | Blanco o magenta fijo | Problema de radio, micrófono o audio |
 
 > **Propuesta a validar:** el mapeo de patrones para `INFO` y `PRECAUCIÓN`

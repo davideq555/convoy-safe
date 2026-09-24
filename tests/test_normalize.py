@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from comboy.normalize import digits_to_words, normalize, strip_accents
+from convoy.normalize import digits_to_words, normalize, strip_accents
 
 
 def test_baja_a_minusculas() -> None:

@@ -7,15 +7,15 @@ import json
 from typing import Any
 
 import pytest
-from comboy.config import EmbeddingConfig
-from comboy.embedding import (
+from convoy.config import EmbeddingConfig
+from convoy.embedding import (
     EmbeddingUnavailable,
     NullEmbedding,
     OllamaEmbedding,
     cosine,
     create_embedding_client,
 )
-from comboy.logging_setup import Logger
+from convoy.logging_setup import Logger
 
 
 class _RespuestaFalsa:
@@ -278,7 +278,7 @@ def test_factory_propaga_timeout_y_batch_size(monkeypatch: pytest.MonkeyPatch) -
         embeddings = [[float(text[1:])] for text in payload["input"]]
         return _RespuestaFalsa(json.dumps({"embeddings": embeddings}).encode("utf-8"))
 
-    monkeypatch.setattr("comboy.embedding.urllib.request.urlopen", abrir)
+    monkeypatch.setattr("convoy.embedding.urllib.request.urlopen", abrir)
     cliente = create_embedding_client(EmbeddingConfig(timeout_s=12.5, batch_size=2))
 
     vectores = cliente.embed(["t0", "t1", "t2"])

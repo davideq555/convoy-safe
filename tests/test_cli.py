@@ -14,7 +14,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from comboy import cli
+from convoy import cli
 
 
 class _DetectorFalso:

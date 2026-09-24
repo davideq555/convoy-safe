@@ -1,4 +1,4 @@
-"""Punto de entrada para ``python -m comboy``."""
+"""Punto de entrada para ``python -m convoy``."""
 
 from __future__ import annotations
 

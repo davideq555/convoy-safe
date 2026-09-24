@@ -1,5 +1,5 @@
 {
-  "_nota": "Frases reservadas para medir el clasificador. NO deben estar en datos/corpus.json: una frase del corpus se compara contra sí misma con similitud 1.0 y no mide nada. Cómo crece: cada frase que falle en la ruta se agrega acá. Se puede fusionar un archivo extra con COMBOY_MEDICION_PATH.",
+  "_nota": "Frases reservadas para medir el clasificador. NO deben estar en datos/corpus.json: una frase del corpus se compara contra sí misma con similitud 1.0 y no mide nada. Cómo crece: cada frase que falle en la ruta se agrega acá. Se puede fusionar un archivo extra con CONVOY_MEDICION_PATH.",
   "version": 1,
   "peligros": {
     "ACCIDENTE": [

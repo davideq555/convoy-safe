@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from comboy.codes import (
+from convoy.codes import (
     HAZARD_TTS,
     LANE_TTS,
     ROLE_BY_NAME,

@@ -80,7 +80,7 @@ class AlertFrame:
 
     Los campos se guardan como enteros crudos para que los valores desconocidos
     que lleguen de un par más nuevo nunca rompan la decodificación. Los helpers
-    de :mod:`comboy.codes` mapean esos valores a los enums de dominio.
+    de :mod:`convoy.codes` mapean esos valores a los enums de dominio.
     """
 
     version: int = PROTOCOL_VERSION

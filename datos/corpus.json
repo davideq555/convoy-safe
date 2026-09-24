@@ -1,5 +1,5 @@
 {
-  "_nota": "Frases de ejemplo por código de peligro. El clasificador compara la frase del conductor contra estas frases, así que agregar una frase acá es agregar cobertura, sin reentrenar nada. Los códigos válidos son los de comboy/codes.py. Para no tocar este archivo versionado se puede fusionar un corpus extra con COMBOY_CORPUS_PATH.",
+  "_nota": "Frases de ejemplo por código de peligro. El clasificador compara la frase del conductor contra estas frases, así que agregar una frase acá es agregar cobertura, sin reentrenar nada. Los códigos válidos son los de convoy/codes.py. Para no tocar este archivo versionado se puede fusionar un corpus extra con CONVOY_CORPUS_PATH.",
   "version": 1,
   "peligros": {
     "ACCIDENTE": [

@@ -1,4 +1,4 @@
-"""comboy-safe: sistema de alerta temprana de peligros para comboys de montaña.
+"""convoy-safe: sistema de alerta temprana de peligros para convoys de montaña.
 
 Fase 0 (nivel de banco de pruebas L0): mover una trama de 17 bytes por un
 transporte, decodificarla, registrarla y pronunciarla. Sin flooding, sin

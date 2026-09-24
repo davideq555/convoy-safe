@@ -13,8 +13,8 @@ observaciones son sintéticas y el cliente es determinista.
 
 from __future__ import annotations
 
-from comboy.codes import Confidence, Hazard
-from comboy.embedding import EmbeddingUnavailable, NullEmbedding
+from convoy.codes import Confidence, Hazard
+from convoy.embedding import EmbeddingUnavailable, NullEmbedding
 from tools import medir_clasificador
 from tools.medir_clasificador import (
     Observacion,

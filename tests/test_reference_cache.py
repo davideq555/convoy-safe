@@ -14,17 +14,17 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
-from comboy import classify as classify_module
-from comboy import datos
-from comboy.classify import (
+from convoy import classify as classify_module
+from convoy import datos
+from convoy.classify import (
     _corpus_fingerprint,
     _resolve_reference_index,
     classify,
 )
-from comboy.codes import Hazard
-from comboy.config import EmbeddingConfig
-from comboy.embedding import NullEmbedding
-from comboy.logging_setup import Logger
+from convoy.codes import Hazard
+from convoy.config import EmbeddingConfig
+from convoy.embedding import NullEmbedding
+from convoy.logging_setup import Logger
 
 MODELO = "modelo-de-prueba"
 URL = "http://localhost:11434"

@@ -5,7 +5,7 @@ son datos estructurados —números, direcciones, señales explícitas— y las 
 son más exactas y auditables que cualquier modelo.
 
 Las funciones reciben el texto **ya normalizado** por
-:func:`comboy.normalize.normalize`, así que los números llegan como palabras
+:func:`convoy.normalize.normalize`, así que los números llegan como palabras
 (``"dos kilometros"``) y no como dígitos.
 """
 

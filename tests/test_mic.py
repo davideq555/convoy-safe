@@ -11,8 +11,8 @@ import wave
 from pathlib import Path
 
 import pytest
-from comboy import mic
-from comboy.logging_setup import Logger
+from convoy import mic
+from convoy.logging_setup import Logger
 
 
 class _ProcesoFalso:

@@ -14,7 +14,7 @@ el protocolo ya probado y solo queda medir el enlace físico.
 ## Definición del MVP
 
 El MVP es la suma de las **Fases 0 a 6**. Al terminarlas, dos vehículos equipados
-deberían poder viajar en un comboy de montaña y advertirse mutuamente peligros
+deberían poder viajar en un convoy de montaña y advertirse mutuamente peligros
 por voz, sin internet, sin GPS y sin infraestructura.
 
 Las Fases 0 a 4 **no requieren ningún hardware nuevo**: alcanzan el PC, la

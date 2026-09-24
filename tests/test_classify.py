@@ -5,14 +5,14 @@ from __future__ import annotations
 import io
 
 import pytest
-from comboy.classify import Classification, classify
-from comboy.codes import Confidence, Hazard, Lane, Urgency
-from comboy.config import EmbeddingConfig
-from comboy.corpus import cargar_corpus
-from comboy.embedding import EmbeddingUnavailable, NullEmbedding
-from comboy.extract import extract_distance, extract_lane, extract_urgency
-from comboy.logging_setup import Logger
-from comboy.normalize import normalize
+from convoy.classify import Classification, classify
+from convoy.codes import Confidence, Hazard, Lane, Urgency
+from convoy.config import EmbeddingConfig
+from convoy.corpus import cargar_corpus
+from convoy.embedding import EmbeddingUnavailable, NullEmbedding
+from convoy.extract import extract_distance, extract_lane, extract_urgency
+from convoy.logging_setup import Logger
+from convoy.normalize import normalize
 
 #: Dimensión de trabajo: un eje por peligro del catálogo.
 DIM = len(Hazard)

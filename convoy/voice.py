@@ -1,7 +1,7 @@
 """Transcripción de voz libre con Vosk (modelo chico en español).
 
 Este módulo convierte el audio del conductor en **texto libre**, que después el
-clasificador (:mod:`comboy.classify`) transforma en un código de peligro. Es la
+clasificador (:mod:`convoy.classify`) transforma en un código de peligro. Es la
 pieza que faltaba entre el wake word y el clasificador.
 
 Vocabulario libre vs. gramática restringida
@@ -17,7 +17,7 @@ Acá, en cambio, se construye ``KaldiRecognizer(model, rate)`` **sin** el tercer
 argumento de gramática. Sin gramática, el recognizer usa el vocabulario completo
 del modelo y devuelve lo que el conductor dijo, palabra por palabra.
 
-La sustitución ``comboy`` -> ``convoy`` de :data:`comboy.wakeword.VOCABULARY_SUBSTITUTIONS`
+La sustitución ``comboy`` -> ``convoy`` de :data:`convoy.wakeword.VOCABULARY_SUBSTITUTIONS`
 **no se aplica** en este camino: se quiere el texto tal cual se dijo, y ni
 ``convoy`` ni ``comboy`` son nombres de peligro. Ese mecanismo pertenece solo al
 wake word.
