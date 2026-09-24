@@ -53,22 +53,22 @@ las dos máquinas.
 
 | Variable | Pisa a | Ejemplo |
 |---|---|---|
-| `COMBOY_NODE_ID` | `node.id` | `2` |
-| `COMBOY_NODE_ROLE` | `node.role` | `follower` |
-| `COMBOY_TRANSPORT` | `transport.kind` | `udp` |
-| `COMBOY_UDP_BIND` | `transport.udp.bind` | `0.0.0.0:45550` |
-| `COMBOY_UDP_PEERS` | `transport.udp.peers` | `eevee.local:45550` |
-| `COMBOY_LOG_LEVEL` | `log.level` | `debug` |
-| `COMBOY_EMBEDDING_KIND` | `embedding.kind` | `ollama` |
-| `COMBOY_EMBEDDING_URL` | `embedding.url` | `http://localhost:11434` |
-| `COMBOY_EMBEDDING_MODEL` | `embedding.model` | `qwen3-embedding:0.6b` |
-| `COMBOY_EMBEDDING_TIMEOUT` | `embedding.timeout_s` | `60` |
-| `COMBOY_EMBEDDING_CACHE` | `embedding.cache_path` | `.comboy-embeddings.json` |
-| `COMBOY_ENV_FILE` | — (apunta a otro archivo de variables) | `config/node-pi.env` |
+| `CONVOY_NODE_ID` | `node.id` | `2` |
+| `CONVOY_NODE_ROLE` | `node.role` | `follower` |
+| `CONVOY_TRANSPORT` | `transport.kind` | `udp` |
+| `CONVOY_UDP_BIND` | `transport.udp.bind` | `0.0.0.0:45550` |
+| `CONVOY_UDP_PEERS` | `transport.udp.peers` | `eevee.local:45550` |
+| `CONVOY_LOG_LEVEL` | `log.level` | `debug` |
+| `CONVOY_EMBEDDING_KIND` | `embedding.kind` | `ollama` |
+| `CONVOY_EMBEDDING_URL` | `embedding.url` | `http://localhost:11434` |
+| `CONVOY_EMBEDDING_MODEL` | `embedding.model` | `qwen3-embedding:0.6b` |
+| `CONVOY_EMBEDDING_TIMEOUT` | `embedding.timeout_s` | `60` |
+| `CONVOY_EMBEDDING_CACHE` | `embedding.cache_path` | `.convoy-embeddings.json` |
+| `CONVOY_ENV_FILE` | — (apunta a otro archivo de variables) | `config/node-pi.env` |
 
-`COMBOY_UDP_PEERS` acepta varios pares separados por coma. Una variable presente
-pero vacía se ignora: `COMBOY_UDP_PEERS=` no borra la lista del archivo. La
-excepción es `COMBOY_EMBEDDING_CACHE=`, donde el vacío **deshabilita** el caché
+`CONVOY_UDP_PEERS` acepta varios pares separados por coma. Una variable presente
+pero vacía se ignora: `CONVOY_UDP_PEERS=` no borra la lista del archivo. La
+excepción es `CONVOY_EMBEDDING_CACHE=`, donde el vacío **deshabilita** el caché
 en disco del índice.
 
 Las rutas de datos no son overrides de la configuración: apuntan al archivo
@@ -77,8 +77,8 @@ Opcionales: si no se definen, se usa solo la base.
 
 | Variable | Qué define | Ejemplo |
 |---|---|---|
-| `COMBOY_CORPUS_PATH` | Corpus extra a fusionar con `datos/corpus.json` | `datos/extra-corpus.json` |
-| `COMBOY_MEDICION_PATH` | Frases de medición extra a fusionar con `datos/medicion.json` | `datos/extra-medicion.json` |
+| `CONVOY_CORPUS_PATH` | Corpus extra a fusionar con `datos/corpus.json` | `datos/extra-corpus.json` |
+| `CONVOY_MEDICION_PATH` | Frases de medición extra a fusionar con `datos/medicion.json` | `datos/extra-medicion.json` |
 
 ### El archivo `.env`
 
@@ -92,7 +92,7 @@ cp .env.example .env
 `.env.example` está versionado y documenta todo lo configurable; `.env` no, así
 que cada nodo tiene el suyo. **No hace falta `source`.**
 
-Dos reglas deliberadas: solo se aceptan claves `COMBOY_*` —un `.env` no puede
+Dos reglas deliberadas: solo se aceptan claves `CONVOY_*` —un `.env` no puede
 inyectar `PATH` ni nada parecido— y el entorno real gana sobre el archivo. La
 precedencia completa queda:
 
@@ -100,7 +100,7 @@ precedencia completa queda:
 entorno real  >  .env  >  archivo YAML  >  valores por defecto
 ```
 
-`COMBOY_ENV_FILE` permite apuntar a otro archivo, por si hacen falta varios
+`CONVOY_ENV_FILE` permite apuntar a otro archivo, por si hacen falta varios
 perfiles en la misma máquina.
 
 ### `peers` es la dirección del otro, no la propia
@@ -126,7 +126,7 @@ lo usa como peer. No hace falta internet ni DNS: mDNS es local a la red.
 
 La PC, en cambio, tiene varias interfaces (Docker, bridges) y su nombre mDNS
 resuelve ambiguo: puede devolver una dirección inalcanzable. Del lado de la Pi va
-una IP, y si el DHCP la cambia se pasa por `COMBOY_UDP_PEERS` sin tocar el YAML.
+una IP, y si el DHCP la cambia se pasa por `CONVOY_UDP_PEERS` sin tocar el YAML.
 
 ## Por qué UDP y no TCP
 
@@ -240,7 +240,7 @@ Cada nivel aísla un componente. Cuando algo falla, se sabe dónde mirar.
 |---|---|---|---|
 | **L0** | Transporte + TTS | El PC envía una trama fija hardcodeada; la Pi la anuncia | La Pi pronuncia la frase correcta y ambos nodos lo registran en el log |
 | **L1** | Clasificador + transporte + TTS | El PC toma una frase **escrita** por consola, la clasifica y la envía | La frase escrita produce el código correcto y la Pi lo anuncia |
-| **L2** | Pipeline de audio completo | El PC: wake word → VAD → STT → clasificar → enviar. Es exactamente `python -m comboy talk`; el tramo STT + clasificación también se prueba solo con `python -m comboy voice --wav ... --no-send`, y la cadena completa sin micrófono con `python -m comboy talk --wav ... --no-send` | Hablando, el sistema produce el código correcto de punta a punta |
+| **L2** | Pipeline de audio completo | El PC: wake word → VAD → STT → clasificar → enviar. Es exactamente `python -m convoy talk`; el tramo STT + clasificación también se prueba solo con `python -m convoy voice --wav ... --no-send`, y la cadena completa sin micrófono con `python -m convoy talk --wav ... --no-send` | Hablando, el sistema produce el código correcto de punta a punta |
 | **L3** | Protocolo bajo estrés | L2 con `LossyTransport` activo (10–40% de pérdida) | Las alertas llegan igual o el sistema informa quién no las recibió |
 | **L4** | Radio real, alcance | Cambiar `UdpTransport` por `LoraTransport` | Ver Fase 5 de la [hoja de ruta](08-hoja-de-ruta.md) |
 
@@ -255,7 +255,7 @@ red: útil para depurar el clasificador o el TTS en aislamiento.
 Además de los niveles, conviene tener una entrada por texto para depurar:
 
 ```bash
-python -m comboy text "hay piedras en el carril derecho a dos kilometros"
+python -m convoy text "hay piedras en el carril derecho a dos kilometros"
 ```
 
 Eso permite probar el clasificador y el protocolo sin depender de que el wake
@@ -271,7 +271,7 @@ word), la clasifica y envía la trama. Sin micrófono se prueba con un WAV 16 kH
 mono s16:
 
 ```bash
-python -m comboy voice --wav frase.wav --no-send
+python -m convoy voice --wav frase.wav --no-send
 ```
 
 Valida que la frase hablada llegue al clasificador y se convierta en una trama de
@@ -286,7 +286,7 @@ micrófono se prueba con un WAV 16 kHz mono s16 que contenga la wake word seguid
 de la frase:
 
 ```bash
-python -m comboy talk --wav frase-con-wakeword.wav --no-send
+python -m convoy talk --wav frase-con-wakeword.wav --no-send
 ```
 
 `--no-send` clasifica y muestra sin transmitir. `--seconds` es solo un **tope de
@@ -324,7 +324,7 @@ la primera corrida.
 Con audio real, el paso es el mismo WAV de arriba:
 
 ```bash
-python -m comboy talk --wav frase-con-wakeword.wav --no-send
+python -m convoy talk --wav frase-con-wakeword.wav --no-send
 ```
 
 En el log, el evento `wake_word` trae `recovered_samples=` (las muestras
@@ -383,7 +383,7 @@ proyecto. Vale la pena hacerla temprano.
 ## Medir la calidad del clasificador
 
 La validación funcional (nivel L1) responde si **una** frase produce el código
-correcto: `python -m comboy text "..."` pasa o falla. La **medición** responde
+correcto: `python -m convoy text "..."` pasa o falla. La **medición** responde
 cuánto acierta el clasificador sobre **muchas** frases reservadas y devuelve un
 porcentaje. Son preguntas distintas: la primera dice si el cableado funciona; la
 segunda, si el juicio semántico alcanza para la ruta.
@@ -444,7 +444,7 @@ conjuntos se solapan y ningún umbral los separa.
 
 Cada frase que falle en la ruta se agrega a `datos/medicion.json`. La medición es
 un banco vivo: más frases, mejor estimación. También se puede fusionar un archivo
-extra con `COMBOY_MEDICION_PATH`, sin tocar el versionado.
+extra con `CONVOY_MEDICION_PATH`, sin tocar el versionado.
 
 Regla que no se rompe: **una frase no puede estar en el corpus y en la medición a
 la vez.** Una frase del corpus se compara contra sí misma con similitud `1.0` y

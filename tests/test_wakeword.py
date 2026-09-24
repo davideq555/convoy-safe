@@ -9,8 +9,8 @@ import types
 from pathlib import Path
 
 import pytest
-from comboy import wakeword
-from comboy.logging_setup import Logger
+from convoy import wakeword
+from convoy.logging_setup import Logger
 
 
 def _logger(buffer: io.StringIO | None = None) -> Logger:

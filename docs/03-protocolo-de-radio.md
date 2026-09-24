@@ -29,7 +29,7 @@ caro un alerta con flooding. **Esto debe validarse con mediciones de campo** en
 los caminos reales; si los enlaces resultan marginales, pasar a SF11 duplica
 aproximadamente el tiempo de aire pero agrega un margen considerable.
 
-### Costo de canal de una alerta para todo el comboy
+### Costo de canal de una alerta para todo el convoy
 
 A SF10, una trama de 17 bytes ocupa el canal unos 340 ms.
 
@@ -113,7 +113,7 @@ Vector de verificación obligatorio: los bytes ASCII de `"123456789"` deben dar
 
 | Tipo | Propósito | Frecuencia |
 |---|---|---|
-| `ALERTA` | Reportar un peligro al comboy | A pedido del conductor |
+| `ALERTA` | Reportar un peligro al convoy | A pedido del conductor |
 | `HEARTBEAT` | Anunciar presencia y mantener el roster | Cada 30–60 s por nodo, con jitter |
 | `JOIN` | Anunciar que un nodo acaba de arrancar | Una vez al inicio |
 | `LEAVE` | Anunciar un apagado limpio | Una vez al apagado |
@@ -197,7 +197,7 @@ de topología. Dado que el terreno de montaña vuelve *normal* la pérdida
 intermitente de línea de vista (D5), que esto salga naturalmente del mecanismo
 de confiabilidad es la razón principal por la que se eligió flooding.
 
-`ttl` se inicializa en **3**, más que suficiente para un comboy de 6, y evita que
+`ttl` se inicializa en **3**, más que suficiente para un convoy de 6, y evita que
 un nodo mal configurado propague tramas indefinidamente.
 
 ## Prioridad y arbitraje de canal
@@ -249,7 +249,7 @@ montaña, perder un par temporalmente es lo esperado. El roster existe
 principalmente para que el originador pueda juzgar si su alerta llegó a todos.
 
 Los heartbeats también le dan a cada nodo una vista pasiva del tamaño del
-comboy, que es contexto útil en los logs y para funcionalidades futuras.
+convoy, que es contexto útil en los logs y para funcionalidades futuras.
 
 ## Expiración de la alerta
 
@@ -268,7 +268,7 @@ No hay mensaje explícito de "vía libre" en el MVP (D7). Una alerta expira
 ### Limitación conocida
 
 Un peligro que se despeja a los 20 segundos igual ocupa el LED durante 180
-segundos, y un nodo que se incorpora al comboy después de que la alerta fue
+segundos, y un nodo que se incorpora al convoy después de que la alerta fue
 difundida nunca se entera. Un mensaje manual de "vía libre" y la reanunciación
 periódica mientras la alerta está activa resolverían ambas cosas. Las dos están
 explícitamente diferidas — ver [07-riesgos.md](07-riesgos.md) y

@@ -36,10 +36,10 @@ from .logging_setup import Logger
 from .normalize import normalize
 
 #: Variable de entorno con la ruta del corpus extra, o vacía si no hay.
-CORPUS_PATH_VAR = "COMBOY_CORPUS_PATH"
+CORPUS_PATH_VAR = "CONVOY_CORPUS_PATH"
 
 #: Variable de entorno con la ruta de la medición extra, o vacía si no hay.
-MEDICION_PATH_VAR = "COMBOY_MEDICION_PATH"
+MEDICION_PATH_VAR = "CONVOY_MEDICION_PATH"
 
 #: Corpus base, versionado con el repositorio, relativo al directorio de trabajo.
 DEFAULT_CORPUS_PATH = Path("datos/corpus.json")

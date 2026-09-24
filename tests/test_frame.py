@@ -5,8 +5,8 @@ from __future__ import annotations
 import os
 
 import pytest
-from comboy.codes import Confidence, Hazard, Lane, MsgType, Role, Urgency
-from comboy.frame import (
+from convoy.codes import Confidence, Hazard, Lane, MsgType, Role, Urgency
+from convoy.frame import (
     CRC16_CCITT_FALSE_INIT,
     FRAME_SIZE,
     PROTOCOL_VERSION,

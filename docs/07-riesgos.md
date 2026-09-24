@@ -61,7 +61,7 @@ La **probabilidad** se estima como Alta / Media / Baja.
 
 | | |
 |---|---|
-| **Descripción** | Si el sistema falla silenciosamente, el conductor cree que alertó al comboy cuando en realidad no pasó nada |
+| **Descripción** | Si el sistema falla silenciosamente, el conductor cree que alertó al convoy cuando en realidad no pasó nada |
 | **Impacto** | **Alto** |
 | **Probabilidad** | Media |
 | **Mitigación** | Confirmación local por TTS ("Alerta enviada") después de cada transmisión. Es parte del diseño de la FSM de audio |
@@ -106,7 +106,7 @@ La **probabilidad** se estima como Alta / Media / Baja.
 
 | | |
 |---|---|
-| **Descripción** | Un peligro que se despeja en 20 segundos igual mantiene el LED 180 segundos (D7). Y un nodo que se suma al comboy después de la difusión nunca se entera |
+| **Descripción** | Un peligro que se despeja en 20 segundos igual mantiene el LED 180 segundos (D7). Y un nodo que se suma al convoy después de la difusión nunca se entera |
 | **Impacto** | **Medio** |
 | **Probabilidad** | Alta |
 | **Mitigación** | Diferido. Futuro: mensaje manual de "vía libre" y reanunciación periódica mientras la alerta está activa. Ver [08-hoja-de-ruta.md](08-hoja-de-ruta.md) |

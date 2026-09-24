@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from comboy.codes import Confidence, Hazard, Lane, Urgency
-from comboy.frame import AlertFrame
-from comboy.phrase import build_phrase
+from convoy.codes import Confidence, Hazard, Lane, Urgency
+from convoy.frame import AlertFrame
+from convoy.phrase import build_phrase
 
 
 def _frame(

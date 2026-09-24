@@ -46,7 +46,7 @@ suelta—. Decir "niebla" cuando el conductor ve polvo sería engañoso.
 ### Compatibilidad hacia atrás
 
 Un nodo que corra un catálogo anterior (hasta `0x0E`) y reciba `0x0F` o `0x10`
-no falla: :func:`comboy.codes.as_hazard` lo degrada a `DESCONOCIDO` y la frase
+no falla: :func:`convoy.codes.as_hazard` lo degrada a `DESCONOCIDO` y la frase
 sale como "peligro no identificado". Se pierde el detalle, nunca la alerta. Por
 eso ampliar el catálogo es seguro en una red con versiones mezcladas.
 
@@ -175,8 +175,8 @@ Ejemplos:
 | `classify.unavailable` | WARN | Servicio de embeddings no disponible o con fallo; se clasifica como `DESCONOCIDO` con confianza baja |
 | `embedding.index` | INFO | Construcción del índice de referencia en varios lotes hacia Ollama; registra la cantidad de frases (`phrases=`) y de peticiones (`batches=`) |
 | `embedding.cache` | INFO | Resolución del índice de referencia contra el caché en disco: `result=hit` si se reutilizó, `result=miss` si hubo que reconstruirlo (con `reason=` y `path=`). Ante un fallo de escritura registra `result=error` |
-| `datos.corpus` | INFO / ERROR | Carga del corpus desde `datos/corpus.json` más el extra de `COMBOY_CORPUS_PATH`: `peligros=`, `frases=`, `extra=`. Falta el extra: `result=extra_ausente` (INFO). Falta la base: `result=base_ausente` (ERROR; el nodo sigue vivo, pero no puede crear alertas) |
-| `datos.medicion` | INFO / ERROR | Carga de las frases de medición desde `datos/medicion.json` más el extra de `COMBOY_MEDICION_PATH`: `peligros=`, `ruido=`. Mismas reglas de ausencia que `datos.corpus` |
+| `datos.corpus` | INFO / ERROR | Carga del corpus desde `datos/corpus.json` más el extra de `CONVOY_CORPUS_PATH`: `peligros=`, `frases=`, `extra=`. Falta el extra: `result=extra_ausente` (INFO). Falta la base: `result=base_ausente` (ERROR; el nodo sigue vivo, pero no puede crear alertas) |
+| `datos.medicion` | INFO / ERROR | Carga de las frases de medición desde `datos/medicion.json` más el extra de `CONVOY_MEDICION_PATH`: `peligros=`, `ruido=`. Mismas reglas de ausencia que `datos.corpus` |
 | `alert.tx` | INFO | Alerta transmitida |
 | `alert.rx` | INFO | Alerta recibida de otro nodo |
 | `alert.echo` | DEBUG | Reemisión escuchada de otro nodo (acuse implícito) |

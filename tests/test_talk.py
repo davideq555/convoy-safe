@@ -16,11 +16,11 @@ import wave
 from pathlib import Path
 
 import pytest
-from comboy import cli, voice, wakeword
-from comboy.classify import Classification
-from comboy.codes import Confidence, Hazard, Lane, Urgency
-from comboy.frame import decode
-from comboy.logging_setup import Logger
+from convoy import cli, voice, wakeword
+from convoy.classify import Classification
+from convoy.codes import Confidence, Hazard, Lane, Urgency
+from convoy.frame import decode
+from convoy.logging_setup import Logger
 
 # ── Dobles y ayudas ──────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-"""Interfaz de línea de comandos: ``python -m comboy``.
+"""Interfaz de línea de comandos: ``python -m convoy``.
 
 Subcomandos:
     run       Corre el loop de recepción del nodo.
@@ -48,8 +48,8 @@ from .wakeword import DEFAULT_MODEL_PATH, VoskWakeWord
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m comboy",
-        description="Alerta temprana de peligros para comboys de montaña (Fase 0 / L0).",
+        prog="python -m convoy",
+        description="Alerta temprana de peligros para convoys de montaña (Fase 0 / L0).",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
@@ -483,7 +483,7 @@ def _voice(args: argparse.Namespace) -> int:
     """Transcribe una frase hablada, la clasifica y envía la alerta.
 
     El conductor habla por el micrófono, Vosk transcribe con **vocabulario
-    libre** (ver :mod:`comboy.voice`), el clasificador elige un código y la
+    libre** (ver :mod:`convoy.voice`), el clasificador elige un código y la
     trama de 17 bytes sale por el canal. No hay gate de confianza ni confirmación:
     si la clasificación se equivoca, se manda igual (decisión del dueño).
 
@@ -906,7 +906,7 @@ def _selftest_checks() -> list[tuple[str, bool, str]]:
 
 
 def _selftest(_args: argparse.Namespace) -> int:
-    print(f"comboy-safe {__version__} autoprueba")
+    print(f"convoy-safe {__version__} autoprueba")
     failures = 0
     for name, ok, detail in _selftest_checks():
         status = "OK" if ok else "FALLA"

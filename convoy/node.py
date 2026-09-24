@@ -23,7 +23,7 @@ from .tts import Speaker
 
 
 class Node:
-    """Un único nodo de comboy: es dueño de un transporte, un logger y un speaker."""
+    """Un único nodo de convoy: es dueño de un transporte, un logger y un speaker."""
 
     def __init__(
         self,

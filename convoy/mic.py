@@ -1,13 +1,13 @@
 """Captura de audio en vivo usando ``arecord`` vía subprocess.
 
-Este módulo sigue el mismo patrón que :mod:`comboy.tts`: se apoya en un binario
+Este módulo sigue el mismo patrón que :mod:`convoy.tts`: se apoya en un binario
 del sistema en lugar de agregar una dependencia. ``arecord`` (alsa-utils) entrega
 PCM crudo por *stdout* y no arrastra PortAudio ni ``sounddevice``, que el diseño
 del proyecto evita a propósito.
 
 Formato esperado del PCM: **16 kHz, mono, entero con signo de 16 bits
 little-endian** (``S16_LE``). Es el mismo formato que consume el motor de wake
-word (:mod:`comboy.wakeword`), así que los bytes viajan sin conversión.
+word (:mod:`convoy.wakeword`), así que los bytes viajan sin conversión.
 
 El audio **nunca se persiste** (D8): los fragmentos existen solo en memoria
 mientras se procesan.

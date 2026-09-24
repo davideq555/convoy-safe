@@ -5,7 +5,7 @@ se lee solo, al cargar la configuración.
 
 Reglas deliberadamente conservadoras:
 
-* **Solo se aceptan claves ``COMBOY_*``.** Un ``.env`` no puede inyectar ``PATH``
+* **Solo se aceptan claves ``CONVOY_*``.** Un ``.env`` no puede inyectar ``PATH``
   ni ninguna otra variable del entorno, ni siquiera por error.
 * **El entorno real gana.** Una variable ya presente en el proceso no se pisa,
   así que exportar algo en la terminal siempre tiene la última palabra.
@@ -19,10 +19,10 @@ from __future__ import annotations
 from pathlib import Path
 
 #: Prefijo obligatorio de las claves aceptadas.
-PREFIX = "COMBOY_"
+PREFIX = "CONVOY_"
 
 #: Variable que permite apuntar a otro archivo (útil para probar varios perfiles).
-ENV_FILE_VAR = "COMBOY_ENV_FILE"
+ENV_FILE_VAR = "CONVOY_ENV_FILE"
 
 #: Nombre por defecto, buscado en el directorio de trabajo.
 DEFAULT_ENV_FILE = ".env"
@@ -47,7 +47,7 @@ def _parse_line(line: str) -> tuple[str, str] | None:
 
 
 def load_env_file(path: str | Path) -> dict[str, str]:
-    """Parsea ``path`` y devuelve las claves ``COMBOY_*`` que define.
+    """Parsea ``path`` y devuelve las claves ``CONVOY_*`` que define.
 
     Un archivo ausente o ilegible devuelve un diccionario vacío: un ``.env``
     roto nunca debe impedir que el nodo arranque.

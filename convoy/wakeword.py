@@ -30,7 +30,7 @@ Alcance de este módulo
 ----------------------
 
 Responde sí/no a la wake word y nada más: la transcripción de la frase de
-peligro y el clasificador viven en :mod:`comboy.voice` y :mod:`comboy.classify`,
+peligro y el clasificador viven en :mod:`convoy.voice` y :mod:`convoy.classify`,
 y el comando ``talk`` los une. El VAD y el half-duplex siguen pendientes.
 
 Recuperación del audio posterior a la wake word
@@ -266,7 +266,7 @@ class VoskWakeWord:
     def model(self) -> Any:
         """Modelo de Vosk ya cargado, o ``None`` si el detector no está disponible.
 
-        Se expone para poder **compartirlo**: :class:`comboy.voice.VoskTranscriber`
+        Se expone para poder **compartirlo**: :class:`convoy.voice.VoskTranscriber`
         construye su recognizer sobre el mismo modelo en vez de cargar un segundo,
         que costaría segundos de latencia y RAM. Mientras exista el detector, el
         modelo sigue vivo y el transcriber puede apoyarse en él.

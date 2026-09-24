@@ -13,9 +13,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from comboy import datos
-from comboy.codes import Hazard
-from comboy.datos import (
+from convoy import datos
+from convoy.codes import Hazard
+from convoy.datos import (
     DatosInvalidos,
     Medicion,
     cargar_corpus,
@@ -24,8 +24,8 @@ from comboy.datos import (
     ruta_corpus,
     ruta_medicion,
 )
-from comboy.logging_setup import Logger
-from comboy.normalize import normalize
+from convoy.logging_setup import Logger
+from convoy.normalize import normalize
 
 
 def _escribir(path: Path, payload: dict[str, Any]) -> Path:

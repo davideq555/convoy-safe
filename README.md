@@ -1,12 +1,12 @@
-# comboy-safe
+# convoy-safe
 
-Sistema de alerta temprana de peligros en ruta para comboys de vehículos que
+Sistema de alerta temprana de peligros en ruta para convoys de vehículos que
 circulan por caminos de montaña, sin cobertura celular, sin GPS y sin acceso a
 internet.
 
 Cada vehículo lleva una Raspberry Pi 4 que escucha al conductor, interpreta una
 advertencia hablada, y transmite por LoRa un código estructurado y compacto al
-resto del comboy. Cada vehículo receptor sintetiza la advertencia localmente con
+resto del convoy. Cada vehículo receptor sintetiza la advertencia localmente con
 texto-a-voz y enciende una señal visual.
 
 > **Estado:** fase de diseño. No hay implementación iniciada.
@@ -33,7 +33,7 @@ Consecuencias de esta decisión:
 - Micrófono y parlante son **dispositivos estrictamente locales**: ningún dato de
   audio cruza el enlace de radio.
 - El presupuesto de radio se mantiene holgado: una alerta que llega a todo el
-  comboy cuesta entre 2 y 5 segundos de tiempo de canal.
+  convoy cuesta entre 2 y 5 segundos de tiempo de canal.
 - El sistema funciona completamente offline, sin ninguna dependencia de nube.
 - No hay ningún LLM en el camino de la alerta (ver
   [docs/04-audio-e-ia.md](docs/04-audio-e-ia.md)).
@@ -47,7 +47,7 @@ se revisen explícitamente.
 
 | # | Decisión | Consecuencia |
 |---|---|---|
-| D1 | El comboy ocupa **hasta ~5 km en total**; la separación entre vehículos es variable | Se asumen enlaces LoRa directos, pero el protocolo debe tolerar la pérdida intermitente de línea de vista |
+| D1 | El convoy ocupa **hasta ~5 km en total**; la separación entre vehículos es variable | Se asumen enlaces LoRa directos, pero el protocolo debe tolerar la pérdida intermitente de línea de vista |
 | D2 | **Cualquier vehículo puede alertar**; el líder tiene prioridad de transmisión | Requiere arbitraje de canal con prioridad para el líder |
 | D3 | Las alertas son **de un solo disparo con retransmisiones** si no se recibieron correctamente | Requiere broadcast confiable con acuse de recibo implícito |
 | D4 | La salida es **síntesis de voz local más un LED** para situaciones de mucho ruido | Doble canal de salida: TTS + indicador visual codificado |
@@ -95,13 +95,13 @@ se revisen explícitamente.
 
 | Término | Significado |
 |---|---|
-| **Comboy** | El grupo de 2 a 6 vehículos que cooperan |
+| **Convoy** | El grupo de 2 a 6 vehículos que cooperan |
 | **Nodo** | El sistema instalado en un vehículo: Raspberry Pi 4 + radio + micrófono + parlante + LED |
-| **Líder** | El nodo configurado como cabeza del comboy, con prioridad de transmisión |
+| **Líder** | El nodo configurado como cabeza del convoy, con prioridad de transmisión |
 | **Seguidor** | Cualquier nodo que no es el líder |
 | **Código de peligro** | La descripción estructurada y compacta del peligro en ruta que viaja por LoRa |
 | **Alerta** | Un código de peligro que fue transmitido y está actualmente activo |
-| **Roster** | El conjunto de nodos que se cree presentes en el comboy, derivado de los heartbeats |
+| **Roster** | El conjunto de nodos que se cree presentes en el convoy, derivado de los heartbeats |
 | **Wake word** | La frase hablada ("atención comboy") que activa la captura de voz |
 | **Flooding** | El esquema de reemisión que le da redundancia y alcance a la capa de radio |
 | **ToA** | Time on Air — cuánto tiempo ocupa una trama el canal LoRa |

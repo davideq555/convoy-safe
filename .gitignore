@@ -24,8 +24,8 @@ models/
 logs/
 *.log
 
-# Caché del índice de embeddings (se regenera solo; ver comboy/classify.py)
-.comboy-embeddings.json
+# Caché del índice de embeddings (se regenera solo; ver convoy/classify.py)
+.convoy-embeddings.json
 
 # Sistema
 .DS_Store
